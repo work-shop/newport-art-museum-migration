@@ -9,9 +9,9 @@
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "individuals": "DATA_SOURCE=r__Constituents DATA_TARGET=Individuals__c node main.js",
-    "organizations": "DATA_SOURCE=r__Constituents DATA_TARGET=Organizations__c node main.js",
-    "gifts": "DATA_SOURCE=r__Gifts DATA_TARGET=Gifts__c node main.js"
+    "individuals": "DATA_TARGET=Individuals__c node main.js",
+    "organizations": "DATA_TARGET=Organizations__c node main.js",
+    "gifts": "DATA_TARGET=Gifts__c node main.js"
   },
   "repository": {
     "type": "git",
