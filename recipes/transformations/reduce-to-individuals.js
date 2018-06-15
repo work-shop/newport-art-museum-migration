@@ -13,6 +13,12 @@ module.exports = RowFilter(
 
         var flag = false;
 
+        /**
+         * This needs to account of all input sources, including the r__Individual_Relationships import.
+         * TODO: adjust this, so that it passes, and reformats, any Individual r__Individual_Relationships as r__Constituents as needed
+         * (possibly maintaining a flag).
+         */
+
         if ( row[ first_name_key ] !== '' && row[ last_name_key ] !== '' && row[ org_name_key ] === '' ) {
 
             delete row[ 'CnBio_Org_Name' ];

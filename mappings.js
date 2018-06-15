@@ -4,7 +4,7 @@
 module.exports = {
 
     'Individuals__c': {
-        primary: ['r__Constituents'],
+        primary: ['r__Constituents', 'r__Individual_Relationships'],
         secondary: []
     },
 

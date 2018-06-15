@@ -32,15 +32,23 @@ module.exports = RowMap(
 
         solicit_code_columns.forEach( function( header ) {
 
-            if ( row[ header ] !== "" ) {
-                solicit_codes += row[ header ] + ';';
-            }
+            if ( typeof row[header] !== 'undefined') {
 
-            delete row[ header ];
+                if ( row[ header ] !== "" ) {
+                    solicit_codes += row[ header ] + ';';
+                }
+
+                delete row[ header ];
+
+            }
 
         });
 
-        row[ solicit_code_header ] = solicit_codes.substring( 0, solicit_codes.length - 1 );
+        if ( solicit_codes !== '' ) {
+
+            row[ solicit_code_header ] = solicit_codes.substring( 0, solicit_codes.length - 1 );
+
+        }
 
         return row;
 
