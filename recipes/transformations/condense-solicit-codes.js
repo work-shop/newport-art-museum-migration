@@ -1,7 +1,7 @@
 'use strict';
 
 var ProgressBar = require('progress');
-
+var RowMap = require('./abstracts/row-operator.js').RowMap;
 
 
 var solicit_code_header = 'Solicit_Codes__c';
@@ -24,9 +24,9 @@ var solicit_code_columns = [
 ];
 
 
-function condense_solicit_codes( dataframe ) {
-
-    return dataframe.map( function( row ) {
+module.exports = RowMap(
+    'Condensing Solicit Codes',
+    function( row ) {
 
         var solicit_codes = "";
 
@@ -44,11 +44,5 @@ function condense_solicit_codes( dataframe ) {
 
         return row;
 
-    });
-
-};
-
-condense_solicit_codes.desc = "Condensing Solicit Codes";
-
-
-module.exports = condense_solicit_codes;
+    }
+);

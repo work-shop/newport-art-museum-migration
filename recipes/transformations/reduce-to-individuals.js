@@ -1,15 +1,15 @@
 'use strict';
 
-var ProgressBar = require('progress');
+var RowFilter = require('./abstracts/row-operator.js').RowFilter;
 
 var first_name_key = 'CnBio_First_Name';
 var last_name_key = 'CnBio_Last_Name';
 var org_name_key = 'CnBio_Org_Name';
 
 
-function reduce_to_individuals( dataframe ) {
-
-    return dataframe.filter( function( row ) {
+module.exports = RowFilter(
+    'Reducing Constituents to Individuals',
+    function( row ) {
 
         var flag = false;
 
@@ -24,10 +24,5 @@ function reduce_to_individuals( dataframe ) {
 
         return flag;
 
-    });
-
-};
-
-reduce_to_individuals.desc = "Reducing Constituents to Individuals";
-
-module.exports = reduce_to_individuals;
+    }
+);

@@ -1,6 +1,7 @@
 'use strict';
 
 var pandas = require('pandas-js')
+var RowOperator = require('./abstracts/row-operator.js');
 
 
 function lift_to_dataframe( dataframe ) {
@@ -9,6 +10,6 @@ function lift_to_dataframe( dataframe ) {
 
 };
 
-lift_to_dataframe.desc = 'Lifting to Pandas Dataframe'
+lift_to_dataframe.desc = 'Lifting to Pandas Dataframe';
 
-module.exports = lift_to_dataframe;
+module.exports = { transformation: lift_to_dataframe };
