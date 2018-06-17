@@ -69,3 +69,6 @@ typings/
 # Source and Target Data
 source-data
 target-data
+
+# Google sheets upload data.
+.googlesheets.conf
