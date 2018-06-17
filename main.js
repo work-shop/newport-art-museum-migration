@@ -19,5 +19,5 @@ const SECONDARY_SOURCE_FILES = SECONDARY_SOURCES.map( function( source ) { retur
 
 CSVDataPipeline( SECONDARY_SOURCES.concat( PRIMARY_SOURCES ), TARGET )
     .sources( PRIMARY_SOURCE_FILES, SECONDARY_SOURCE_FILES )
-    .transformations( recipes[ TARGET ] )
+    .recipe( recipes[ TARGET ] )
     .target( TARGET_FILE );
