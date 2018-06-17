@@ -28,6 +28,7 @@
   },
   "homepage": "https://github.com/work-shop/newport-art-museum-migration#readme",
   "dependencies": {
+    "array-sort": "^1.0.0",
     "babel-runtime": "^6.26.0",
     "csv-parser": "^1.12.1",
     "csv-write-stream": "^2.0.0",
