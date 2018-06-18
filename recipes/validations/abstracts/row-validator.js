@@ -23,7 +23,7 @@ function RowValidatorFactory( op, postprocessing = function( x ) { return x; } )
 
             self.transformation.state = passed === dataframe.length;
 
-            self.transformation.statusMessage = ( self.transformation.state ) ? passMessage + '\t\t\t[All rows passed]' : failMessage + '\t\t\t[' + (dataframe.length - passed) + ' rows failed]';
+            self.transformation.statusMessage = ( self.transformation.state ) ? '[All rows passed]\t\t\t' + passMessage : '[' + (dataframe.length - passed) + '/' + (dataframe.length) +' rows failed]\t\t\t' + failMessage;
 
             return result;
 

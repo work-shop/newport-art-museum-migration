@@ -10,6 +10,9 @@ var birthday_key = 'CnBio_Birth_date';
 var suffix_1_key = 'CnBio_Suffix_1';
 var suffix_2_key = 'CnBio_Suffix_2';
 
+const name_field = 'Name__n';
+
+var row_type_header = 'Record_Type__f';
 
 module.exports = RowFilter(
     'Reducing Constituents to Organizations',
@@ -25,6 +28,10 @@ module.exports = RowFilter(
             delete row[ middle_name_key ];
             delete row[ suffix_1_key ];
             delete row[ suffix_2_key ];
+
+            row[ name_field ] = row[ org_name_key ];
+
+            row[ row_type_header ] = 'Constituent';
 
             flag = true;
 

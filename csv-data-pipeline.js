@@ -148,9 +148,11 @@ function CSVDataPipeline( sources, target ) {
 
     self.__runTransformation = function( data, transformation, i ) {
 
+        self.__progress.interrupt( '\t' + transformation.desc );
+
         var transformed = transformation( data, self.__secondaryrows );
 
-        self.__progress.interrupt( '\t' + '[✔] ' + transformation.desc );
+        self.__progress.interrupt( '\t\t\t\t\t\t\t\t\t' + '[✔]' );
         self.__progress.tick( 1 );
 
         return transformed;
@@ -160,9 +162,11 @@ function CSVDataPipeline( sources, target ) {
 
     self.__runValidation = function( data, validation, i ) {
 
+        self.__progress.interrupt( '\t' + validation.desc );
+
         var result = validation( data, self.__secondaryrows );
 
-        self.__progress.interrupt( '\t' + ((validation.state) ? '[✔]' : '[✗]') + ' ' + validation.statusMessage );
+        self.__progress.interrupt( '\t' + ((validation.state) ? '[✔]' : '[✗]') + ' ' + validation.statusMessage + '\n' );
         self.__progress.tick( 1 );
 
         return result;
