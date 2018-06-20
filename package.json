@@ -14,7 +14,8 @@
     "households": "DATA_TARGET=Household__c node main.js",
     "gifts": "DATA_TARGET=Gift__c node main.js",
     "memberships": "DATA_TARGET=Membership__c node main.js",
-    "cards": "DATA_TARGET=Card__c node main.js"
+    "cards": "DATA_TARGET=Card__c node main.js",
+    "contact1": "DATA_TARGET=Contact1__a node main.js"
   },
   "repository": {
     "type": "git",

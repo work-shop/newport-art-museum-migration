@@ -2,6 +2,28 @@
 
 
 module.exports = {
+    /**
+     * Audit Sheets for NPSP
+     */
+    'Contact1__a': {
+        primary: ['r__Heads_of_Household'],
+        secondary: ['r__Addresses', 'r__Phones']
+    },
+
+    'Contacts_and_Accounts__a': {
+        primary: ['r__Constituents', 'r__Individual_Relationships'],
+        secondary: ['r__Addresses', 'r__Phones']
+    },
+
+
+    /**
+     * Primary Export Sheet for NPSP
+     */
+
+    'NPSP_Import_Profile__c': {
+
+    },
+
 
     /**
      * Primary Objects
