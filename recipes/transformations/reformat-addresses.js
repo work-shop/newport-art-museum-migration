@@ -11,7 +11,6 @@ var address_headers = [
     'State',
     'ZIP',
     'ContryLongDscription',
-    'Is_Primary',
     'Seasonal',
     'Seasonal_From',
     'Seasonal_To',
@@ -42,7 +41,7 @@ var address_type_mapping = {
     'Seasonal 1': 'Seasonal 1',
     'Seasonal 2': 'Seasonal 2',
     'Temporarily Suspended': null,
-    'Winder Address': 'Seasonal 3'
+    'Winter Address': 'Seasonal 3'
 };
 
 
@@ -66,6 +65,8 @@ module.exports = RowMap(
             var address_fields = address_headers.map( function( suffix ) { return row[ address_header( i, suffix ) ]; });
 
             var address_type = address_type_mapping[ address_fields[0] ];
+
+            console.log( address_type );
 
             if ( typeof address_type !== 'undefined' && address_type != null ) {
 

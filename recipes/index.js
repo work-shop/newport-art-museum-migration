@@ -18,5 +18,7 @@ var recipes = {};
 
 recipes['Contact1__a'] = require('./build-primary-contacts.js');
 
+recipes['NPSP_Import_Profile__c'] = require('./build-base-npsp-import.js');
+
 
 module.exports = recipes;

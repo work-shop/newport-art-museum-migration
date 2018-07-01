@@ -21,7 +21,8 @@ module.exports = {
      */
 
     'NPSP_Import_Profile__c': {
-
+        primary: ['r__NPSP_Export_Constituent_Master'],
+        secondary: ['r__NPSP_Export_Memberships']
     },
 
 

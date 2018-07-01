@@ -15,7 +15,8 @@
     "gifts": "DATA_TARGET=Gift__c node main.js",
     "memberships": "DATA_TARGET=Membership__c node main.js",
     "cards": "DATA_TARGET=Card__c node main.js",
-    "contact1": "DATA_TARGET=Contact1__a node main.js"
+    "contact1": "DATA_TARGET=Contact1__a node main.js",
+    "npsp": "DATA_TARGET=NPSP_Import_Profile__c node main.js"
   },
   "repository": {
     "type": "git",

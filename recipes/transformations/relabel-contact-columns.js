@@ -9,5 +9,4 @@ module.exports = RelabelColumnsFactory({
     "CnBio_Last_Name": "Contact1 Last Name __c",
     "CnBio_Middle_Name": "Contact1 Middle Name __c",
     "CnBio_Birth_date": "Contact1 Birthdate __c",
-    "CnAdrSal_Salutation": "Salutation__c"
 });

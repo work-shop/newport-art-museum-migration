@@ -31,6 +31,8 @@ module.exports = RowFilter(
 
             row[ row_type_header ] = 'Constituent';
 
+            row[ 'RE ID __c' ] = row[ 'CnBio_System_ID' ]
+
             flag = true;
 
         }

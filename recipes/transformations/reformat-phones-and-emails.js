@@ -21,7 +21,7 @@ var phone_type_mapping = {
     'Cell Alternate': 'Other Phone',
     'Direct': 'Home Phone',
     'Email': 'Personal Email',
-    'Fax': 'Fax Phone',
+    'Fax': null,
     'gallery': 'Work Phone',
     'Home': 'Home Phone',
     'Home Alternate': 'Other Phone',
@@ -29,16 +29,16 @@ var phone_type_mapping = {
     'Phone1': 'Home Phone',
     'secondary address phone': 'Other Phone',
     'Spouse': null,
-    'Summer': 'Summer Phone',
-    'summer phone#': 'Summer Phone',
-    'summer phone#_1': 'Summer Phone',
+    'Summer': 'Other Phone',
+    'summer phone#': 'Other Phone',
+    'summer phone#_1': 'Other Phone',
     'unknown': null,
     'unlisted number': null,
     'Web Site': null,
     'Wife cell': null,
-    'Winter': 'Winter Phone',
-    'winter phone': 'Winter Phone',
-    'winter phone1': 'Winter Phone',
+    'Winter': 'Other Phone',
+    'winter phone': 'Other Phone',
+    'winter phone1': 'Other Phone',
     'Work': 'Work Phone',
     'Work email': 'Work Email'
 };
@@ -52,7 +52,7 @@ function format( number ) { return number; }
 
 function get_type( value ) { return ( value.indexOf( 'Email' ) !== -1) ? 'Email' : 'Phone'; }
 
-function get_subtype( value ) { return ( value.indexOf(' Email') ) ? value.slice(0, value.indexOf(' Email' ) ) : value.slice(0, value.indexOf(' Phone') ); }
+function get_subtype( value ) { return ( value.indexOf(' Email') !== -1 ) ? value.slice(0, value.indexOf(' Email' ) ) : value.slice(0, value.indexOf(' Phone') ); }
 
 
 module.exports = RowMap(
