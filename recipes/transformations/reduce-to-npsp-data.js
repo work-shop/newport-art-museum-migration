@@ -20,6 +20,8 @@ module.exports = RowMapReduce(
 
             var contact1_row = makeContact1( row );
 
+            //console.log(row);
+
 
             if ( individualConstituentHasSpouse( row ) ) {
 
@@ -29,6 +31,9 @@ module.exports = RowMapReduce(
 
             }
 
+            /**
+             * Constituent Individual Relationships will be imported using a Seperate Import Process
+             */
 
             // for ( var i = 0; i < contact1_individual_relations; i += 1 ) {
             //
@@ -44,7 +49,7 @@ module.exports = RowMapReduce(
             //
             // }
 
-            for ( var i = 0; i < contact1_organizational_relations; i += 1 ) {
+            for ( var i = 1; i <= contact1_organizational_relations; i += 1 ) {
 
                 var prefix = makeIndexedPrefix('CnRelOrg', '1', i );
 
@@ -58,15 +63,13 @@ module.exports = RowMapReduce(
 
             }
 
+            if ( result.length === 0 ) {
 
+                result.push( contact1_row );
 
+            }
 
-            // if ( result.length === 0 ) {
-            //
-            //     result.push( contact1_row );
-            //
-            // }
-
+            console.log( result.length );
 
             return result;
 
@@ -159,7 +162,7 @@ function makeAccount1forContact1( account_prefix, phone_prefix, contact_phones_c
 
     var account_row = makeSurjectiveMappingWith( mapping )( row );
 
-    account_row['Account1 Street __c'] = makeStreet( account_prefix, row, ', ' )[ 'Home Street __c' ];
+    account_row['Account1 Street __c'] = makeStreet( account_prefix + 'Adr_', row, ', ' )[ 'Home Street __c' ];
 
     return account_row;
 
