@@ -41,6 +41,7 @@
     "moment": "^2.22.2",
     "pandas-js": "^0.2.4",
     "parse-csv": "^0.2.0",
-    "progress": "^2.0.0"
+    "progress": "^2.0.0",
+    "us-phone-parser": "^1.0.2"
   }
 }

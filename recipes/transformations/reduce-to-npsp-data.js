@@ -1,5 +1,7 @@
 'use strict'
 
+var Phone = require('us-phone-parser');
+
 var RowMapReduce = require('./abstracts/row-operator.js').RowMapReduce;
 
 const contact1_addresses_count = 5;
@@ -19,9 +21,6 @@ module.exports = RowMapReduce(
             var result = [];
 
             var contact1_row = makeContact1( row );
-
-            //console.log(row);
-
 
             if ( individualConstituentHasSpouse( row ) ) {
 
@@ -69,15 +68,17 @@ module.exports = RowMapReduce(
 
             }
 
-            console.log( result.length );
-
             return result;
 
         } else {
 
-            // TODO: Implement
+            var result = []
 
-            return [];
+            var account1_row = makeAccount1( row );
+
+            result.push( account1_row );
+
+            return result;
 
         }
 
@@ -122,6 +123,42 @@ function makeContact1( row ) {
 }
 
 
+
+function makeAccount1( row ) {
+
+    var mapping = {};
+
+    mapping[ 'CnBio_Org_Name' ] = 'Account1 Name __c';
+    mapping[ 'CnBio_System_ID' ] = 'Account1 RE Migration ID __c';
+
+    var account1_row = makeSurjectiveMappingWith( mapping )(row);
+
+    var account1_phones_and_emails = {};
+
+    for ( var i = 1; i <= contact1_phones_count; i += 1 ) {
+        account1_phones_and_emails = merge( account1_phones_and_emails, makePhonesAndEmails( makeIndexedPrefix('CnPh', '1', i ), 'Account1', row ) );
+    }
+
+    var account1_phone = selectPrimaryPhoneForAccount( account1_phones_and_emails );
+
+    account1_row['Account1 Phone __c'] = account1_phone;
+
+    var account1_primary_address = makeSurjectiveMappingWith({
+        'CnAdrPrf_City': 'Account1 City __c',
+        'CnAdrPrf_State': 'Account1 State/Province __c',
+        'CnAdrPrf_ZIP': 'Account1 Zip/Postal Code __c',
+        'CnAdrPrf_ContryLongDscription': 'Account1 Country __c'
+    })( row );
+
+    account1_primary_address['Account1 Street __c'] = makeStreet( 'CnAdrPrf_', row, ', ' )['Home Street __c'];
+
+    account1_row = merge( account1_row, account1_primary_address );
+
+    return account1_row;
+
+}
+
+
 function makeContact2forContact1( contact_prefix, phone_prefix, contact_phones_count,  row ) {
 
     var mapping = {};
@@ -162,6 +199,7 @@ function makeAccount1forContact1( account_prefix, phone_prefix, contact_phones_c
 
     var account_row = makeSurjectiveMappingWith( mapping )( row );
 
+    account_row[ 'Account1 Phone __c' ]  = formatPhone( account_row[ 'Account1 Phone __c' ] );
     account_row['Account1 Street __c'] = makeStreet( account_prefix + 'Adr_', row, ', ' )[ 'Home Street __c' ];
 
     return account_row;
@@ -302,8 +340,6 @@ function makePhonesAndEmails( pre_header_prefix, post_header_prefix, row ) {
 
     function header( type ) { return post_header_prefix + ' ' + type + ' __c'; }
 
-    function format( number ) { return number; }
-
     function get_type( value ) { return ( value.indexOf( 'Email' ) !== -1) ? 'Email' : 'Phone'; }
 
     function get_subtype( value ) { return ( value.indexOf(' Email') !== -1 ) ? value.slice(0, value.indexOf(' Email' ) ) : value.slice(0, value.indexOf(' Phone') ); }
@@ -317,7 +353,7 @@ function makePhonesAndEmails( pre_header_prefix, post_header_prefix, row ) {
 
     if ( typeof phone_type !== 'undefined' && phone_type != null ) {
 
-        var formatted_value = format( phone_values[1] );
+        var formatted_value = formatPhone( phone_values[1] );
 
         result[ header( phone_type ) ] = formatted_value;
 
@@ -328,5 +364,45 @@ function makePhonesAndEmails( pre_header_prefix, post_header_prefix, row ) {
     }
 
     return result;
+
+}
+
+
+
+function formatPhone( number ) {
+    var attempt = new Phone( number );
+
+    if ( attempt.number() !== '0000000000' ) {
+
+        return attempt.toString();
+
+    } else {
+
+        return '';
+
+    }
+
+}
+
+
+function selectPrimaryPhoneForAccount( phones ) {
+
+    if ( typeof phones['Account1 Preferred Phone __c'] !== 'undefined' ) {
+
+        var preferred = phones['Account1 Preferred Phone __c'];
+
+        if ( typeof phones['Account1 ' + preferred + ' Phone __c'] !== 'undefined' ) {
+
+            return phones['Account1 ' + preferred + ' Phone __c'];
+
+        }
+
+    }
+
+    var candidates = Object.values( phones );
+
+    var phones = candidates.filter( function( number ) { return formatPhone( number ) !== ''; });
+
+    return phones[0] || '';
 
 }
