@@ -94,8 +94,11 @@ function makeContact1( row ) {
         'CnBio_First_Name' : 'Contact1 First Name __c',
         'CnBio_Last_Name' : 'Contact1 Last Name __c',
         'CnBio_Middle_Name' : 'Contact1 Middle Name __c',
-        'CnBio_System_ID' : 'Contact1 RE Migration ID __c'
+        'CnBio_System_ID' : 'Contact1 RE ID __c',
+        'CnBio_Gender' : 'Contact1 Gender __c'
     })( row );
+
+    contact1_row['Contact1 Gender __c'] = normalizeGenderRep( contact1_row['Contact1 Gender __c']  );
 
     var contact1_primary_address_street = makeStreet( 'CnAdrPrf_', row, ', ' );
 
@@ -123,13 +126,15 @@ function makeContact1( row ) {
 }
 
 
-
+/**
+ * Build a self-contained account row.
+ */
 function makeAccount1( row ) {
 
     var mapping = {};
 
     mapping[ 'CnBio_Org_Name' ] = 'Account1 Name __c';
-    mapping[ 'CnBio_System_ID' ] = 'Account1 RE Migration ID __c';
+    mapping[ 'CnBio_System_ID' ] = 'Account1 RE ID __c';
 
     var account1_row = makeSurjectiveMappingWith( mapping )(row);
 
@@ -159,6 +164,28 @@ function makeAccount1( row ) {
 }
 
 
+/**
+ * Puts the gender of the constituent into Salesforce normal representation.
+ */
+function normalizeGenderRep( rep ) {
+
+    rep = rep || '';
+
+    if ( rep === 'Male' || rep === 'Female' ) {
+
+        return rep;
+
+    } else {
+
+        return 'Neutral';
+
+    }
+}
+
+
+/**
+ * Associate a secondary contact with this Contact1 Household.
+ */
 function makeContact2forContact1( contact_prefix, phone_prefix, contact_phones_count,  row ) {
 
     var mapping = {};
@@ -168,9 +195,14 @@ function makeContact2forContact1( contact_prefix, phone_prefix, contact_phones_c
     mapping[ contact_prefix + 'First_Name' ] = 'Contact2 First Name __c';
     mapping[ contact_prefix + 'Last_Name' ] = 'Contact2 Last Name __c';
     mapping[ contact_prefix + 'Middle_Name' ] = 'Contact2 Middle Name __c';
-    mapping[ contact_prefix + 'System_ID' ] = 'Contact2 RE Migration ID __c';
+    mapping[ contact_prefix + 'System_ID' ] = 'Contact2 RE ID __c';
+    mapping[ contact_prefix + 'Gender' ] = 'Contact2 Gender __c';
+
 
     var contact_row = makeSurjectiveMappingWith( mapping )( row );
+
+    contact_row[ 'Contact2 Gender __c' ] = normalizeGenderRep( contact_row[ 'Contact2 Gender __c' ] );
+
 
     var contact_phones_and_emails = {};
 
@@ -185,6 +217,9 @@ function makeContact2forContact1( contact_prefix, phone_prefix, contact_phones_c
 
 }
 
+/**
+ * Associate a primary business / organization with this Contact1
+ */
 function makeAccount1forContact1( account_prefix, phone_prefix, contact_phones_count, row ) {
 
     var mapping = {};
@@ -194,7 +229,7 @@ function makeAccount1forContact1( account_prefix, phone_prefix, contact_phones_c
     mapping[ account_prefix + 'Adr_State' ] = 'Account1 State/Province __c';
     mapping[ account_prefix + 'Adr_ZIP' ] = 'Account1 Zip/Postal Code __c';
     mapping[ account_prefix + 'Adr_ContryLongDscription' ] = 'Account1 Country __c';
-    mapping[ account_prefix + 'System_ID' ] = 'Account1 RE Migration ID __c';
+    mapping[ account_prefix + 'System_ID' ] = 'Account1 RE ID __c';
     mapping[ account_prefix + 'Ph_1_01_Phone_number' ] = 'Account1 Phone __c';
 
     var account_row = makeSurjectiveMappingWith( mapping )( row );
@@ -206,8 +241,13 @@ function makeAccount1forContact1( account_prefix, phone_prefix, contact_phones_c
 
 }
 
+/**
+ * there will be no Contact2 <=> Account2 relationships in this import.
+ */
 
-
+/**
+ * Make a prefix based on an iterated CSV field.
+ */
 function makeIndexedPrefix( prefix, i, j ) {
     return prefix + '_' + i + '_' + ((('' + j).length == 2 ) ? j : ('0' + j) ) + '_';
 }

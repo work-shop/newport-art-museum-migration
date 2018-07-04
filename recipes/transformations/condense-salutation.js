@@ -14,6 +14,50 @@ var invalid_salutations = {
 };
 
 
+/**
+
+    Valid Salesforce Salutations.
+
+    Ms.
+    Mr.
+    Mx
+    Mrs.
+    Miss
+    Dr.
+    Professor
+
+    Brigadier General
+    Captain
+    Colonel
+    Commander
+    General
+    Lieutenant Colonel
+    Lieutenant Commander
+    Lieutenant General
+    Major
+    Major General
+    Rear Admiral
+    Sergeant
+
+    Ambassador
+    Councilman
+    Councilwoman
+    Representative
+    Senator
+
+    Brother
+    Father
+    Rabbi
+    Reverend
+    Sister
+
+    Count
+    Countess
+    Honorable
+    Marquesa
+    Sir
+ */
+
 function get_salutation( gender, titles ) {
     if ( gender === 'Unknown' || titles.length === 0  ) { return ''; }
 

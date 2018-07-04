@@ -92,7 +92,10 @@ fields.NPSPImport = {
         'Contact1 Mobile Phone __c',
         'Contact1 Other Phone __c',
         'Contact1 Preferred Phone __c', // One of Home, Work, Mobile, or Other, if specified
-        'Contact1 RE Migration ID __c', // TODO: Add to Salesforce Contact Model, add to Import
+        'Contact1 RE ID __c',
+        'Contact1 Solicit Codes __c', // Solicit Codes for Contact1
+        'Contact1 Constituent Codes __c',
+        'Contact1 Gender __c',
 
         // These will be the address data associated with the Household created for Contact1
         'Home Street __c',
@@ -100,7 +103,6 @@ fields.NPSPImport = {
         'Home State/Province __c',
         'Home Zip/Postal Code __c',
         'Home Country',
-
 
         // Contact2 will be connected to Contact1's Household
         'Contact2 Salutation __c',
@@ -117,8 +119,10 @@ fields.NPSPImport = {
         'Contact2 Mobile Phone __c',
         'Contact2 Other Phone __c',
         'Contact2 Preferred Phone __c', // One of Home, Work, Mobile, or Other, if specified
-        'Contact2 RE Migration ID __c', // TODO: Add to Salesforce Contact Model, Add to Import
-
+        'Contact2 RE ID __c',
+        'Contact2 Solicit Codes __c',
+        'Contact2 Constituent Codes __c',
+        'Contact2 Gender __c',
 
         // Account1 will be related to Contact1
         'Account1 Name __c', // Required, if any other fields from Account1 are present
@@ -129,8 +133,9 @@ fields.NPSPImport = {
         'Account1 Country __c',
         'Account1 Phone __c',
         'Account1 Website __c', // Skip
-        'Account1 RE Migration ID __c', // TODO: Add to Salesforce Contact Model, Add to Import
-
+        'Account1 RE ID __c',
+        'Account1 Solicit Codes __c',
+        'Account1 Constituent Codes __c',
 
         // Account2 will be related to Contact2
         'Account2 Name __c', // Required, if any other fields from Account1 are present
@@ -141,7 +146,9 @@ fields.NPSPImport = {
         'Account2 Country __c',
         'Account2 Phone __c',
         'Account2 Website __c', // Skip
-        'Account2 RE Migration ID __c', // TODO: Add to Salesforce Contact Model, Add to Import
+        'Account2 RE ID __c',
+        'Account2 Solicit Codes __c',
+        'Account2 Constituent Codes __c',
 
         // Donation Information
         'Donation Donor __c', // either Contact1 to associate the donation with Contact1 or 'Account1' to associate with the org account. Defaults to 'Contact1'
@@ -156,15 +163,18 @@ fields.NPSPImport = {
         'Donation Membership Origin __c', // Not sure what this is for. Skip for now.
         'Donation Membership Start Date __c', // The start date of the membership if the donation is for a membership.
         'Donation Membership End Date __c', // The end date of the membership if the donation is for a membership.
-        'Donation Campaign Name __c', // Tries to match an existing campaign by name. If no match is found, will create a new campaign.
-        'Donation Appeal Name __c', // TODO: Add to Salesforce Opportunity Model, Add to Import
-        'Donation Fund Name __c', // TODO: Add to Salesforce Opportunity Model, Add to Import
-        'Donation RE Migration ID __c', // TODO: Add to Salesforce Contact Model, Add to Import
-        'Donation Check Date __c', // TODO: Add Check Date to the opportunity record
+        'Donation RE Campaign __c', // Tries to match an existing campaign by name. If no match is found, will create a new campaign.
+        'Donation RE Appeal __c',
+        'Donation RE Fund __c',
+        'Donation RE ID __c',
+        'Donation RE Membership ID __c',
+        'Donation Acknowledgement Status',
         'Payment Method __c', // The pay-method for this donation
+        'Payment Date __c',
         'Payment Check/Reference Number' // The check or ref number, if there is one.
     ]
 };
+
 
 /**
  * Follow-up Imports Needed:
