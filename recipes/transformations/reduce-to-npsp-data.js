@@ -12,75 +12,57 @@ const contact1_individual_relations = 5;
 
 const contact1_organizational_relations = 5;
 
+
+// TODO: determine need for this?
+var constituentsSeenAsSpouses = {};
+
+// TODO: determine need for this?
+var organizationsSeenAsPrimaryBusiness = {};
+
+
 module.exports = RowMapReduce(
     '(Constituents × Individual Relations × Gifts × Memberships) → NPSP_Import',
     function( row ) {
 
+        var result = [];
+
         if ( isIndividualConstituent( row ) ) {
 
-            var result = [];
-
+            // Create a Contact1 representing this Head of Household.
             var contact1_row = makeContact1( row );
 
+            // Create a Spouse for the Constituent, if Relevant.
             if ( individualConstituentHasSpouse( row ) ) {
 
                 var spouse = makeContact2forContact1( 'CnSpSpBio_', 'CnSpPh', 3, row );
 
-                result.push( duplicateWith( contact1_row, spouse ) );
+                contact1_row = merge( contact1_row, spouse );
 
             }
 
-            /**
-             * Constituent Individual Relationships will be imported using a Seperate Import Process
-             */
+            // Create a primary affiliation for the contact if present.
+            if ( individualConstituentHasPrimaryAccount( row ) ) {
 
-            // for ( var i = 0; i < contact1_individual_relations; i += 1 ) {
-            //
-            //     var prefix = makeIndexedPrefix('CnRelInd', '1', i );
-            //
-            //     if ( individualConstituentHasRelation( prefix, row ) && individualRelationIsNotSpouse( prefix, row ) ) {
-            //
-            //         var rel = makeContact2forContact1( prefix, prefix + 'Ph', 5, row );
-            //
-            //         result.push( duplicateWith( contact1_row, rel ) );
-            //
-            //     }
-            //
-            // }
+                var account = makeAccount1forContact1('CnPrBs_', 'CnPrBsPh', 5, row );
 
-            for ( var i = 1; i <= contact1_organizational_relations; i += 1 ) {
-
-                var prefix = makeIndexedPrefix('CnRelOrg', '1', i );
-
-                if ( individualConstituentHasAccountRelation( prefix, row ) ) {
-
-                    var rel = makeAccount1forContact1( prefix, prefix + 'Ph', 5, row );
-
-                    result.push( duplicateWith( contact1_row, rel ) );
-
-                }
+                contact1_row = merge( contact1_row, account );
 
             }
 
-            if ( result.length === 0 ) {
+            result.push( contact1_row );
 
-                result.push( contact1_row );
 
-            }
+        } else if ( isOrganizationalConstituent( row ) ) {
 
-            return result;
-
-        } else {
-
-            var result = []
 
             var account1_row = makeAccount1( row );
 
             result.push( account1_row );
 
-            return result;
 
         }
+
+        return result;
 
     }
 );
@@ -99,6 +81,7 @@ function makeContact1( row ) {
     })( row );
 
     contact1_row['Contact1 Gender __c'] = normalizeGenderRep( contact1_row['Contact1 Gender __c']  );
+    contact1_row['Contact1 Solicit Codes __c'] = condenseSolicitCodes( row );
 
     var contact1_primary_address_street = makeStreet( 'CnAdrPrf_', row, ', ' );
 
@@ -137,6 +120,8 @@ function makeAccount1( row ) {
     mapping[ 'CnBio_System_ID' ] = 'Account1 RE ID __c';
 
     var account1_row = makeSurjectiveMappingWith( mapping )(row);
+
+    account1_row['Account1 Solicit Codes __c'] = condenseSolicitCodes( row );
 
     var account1_phones_and_emails = {};
 
@@ -283,9 +268,18 @@ function isIndividualConstituent( row ) {
     return row.CnBio_First_Name !== '' && row.CnBio_Last_Name !== '' && row.CnBio_Org_Name === '';
 }
 
+function isOrganizationalConstituent( row ) {
+    return row.CnBio_First_Name === '' && row.CnBio_Last_Name === '' && row.CnBio_Org_Name !== '';
+}
+
 function individualConstituentHasSpouse( row ) {
     return row.CnSpSpBio_First_Name !== '' && row.CnSpSpBio_Last_Name !== '';
 }
+
+function individualConstituentHasPrimaryAccount( row ) {
+    return row.CnPrBs_Org_Name !== '' && row.CnPrBs_System_ID !== '';
+}
+
 
 function individualConstituentHasRelation( prefix, row ) {
     return row[ prefix + 'First_Name' ] !== '' && row[ prefix + 'Last_Name' ] !== '';
@@ -298,6 +292,7 @@ function individualRelationIsNotSpouse( prefix, row ) {
 function individualConstituentHasAccountRelation( prefix, row ) {
     return row[ prefix + 'Org_Name' ] !== '';
 }
+
 
 
 function merge( rowA, rowB ) { return Object.assign( rowA, rowB ); }
@@ -446,3 +441,101 @@ function selectPrimaryPhoneForAccount( phones ) {
     return phones[0] || '';
 
 }
+
+
+
+/**
+ * Condense Solicit Codes here.
+ */
+function condenseSolicitCodes( row ) {
+
+    var result = {};
+
+    const solicit_code_columns = [
+        "CnSolCd_1_01_Solicit_Code",
+        "CnSolCd_1_02_Solicit_Code",
+        "CnSolCd_1_03_Solicit_Code",
+        "CnSolCd_1_04_Solicit_Code",
+        "CnSolCd_1_05_Solicit_Code",
+        "CnSolCd_1_06_Solicit_Code",
+        "CnSolCd_1_07_Solicit_Code",
+        "CnSolCd_1_08_Solicit_Code",
+        "CnSolCd_1_09_Solicit_Code",
+        "CnSolCd_1_10_Solicit_Code",
+    ];
+
+
+    var solicit_codes = [];
+
+    solicit_code_columns.forEach( function( header ) {
+
+        if ( typeof row[ header ] !== 'undefined') {
+
+            if ( row[ header ] !== '' ) {
+                var code = normalizeSolicitCodeRep( row[ header ] );
+
+                if ( code != null ) {
+                    solicit_codes.push( code );
+                }
+
+            }
+
+        }
+
+    });
+
+    return solicit_codes.join(';');
+
+}
+
+
+
+function normalizeSolicitCodeRep( code ) {
+    switch ( code.trim().toLowerCase() ) {
+
+        case 'do not mail':
+            return 'Do Not Mail';
+
+        case 'do not solicit':
+            return 'Do Not Solicit';
+
+        case 'do not solicit - membership':
+            return 'Do Not Solicit Membership';
+
+        case 'do not contact':
+            return 'Do Not Contact';
+
+        case 'do not mail':
+            return 'Do Not Mail';
+
+        case 'do not email':
+        case 'requests no email':
+            return 'Do Not Email';
+
+        default:
+            return null;
+
+    }
+}
+
+
+
+// Parking Lot
+
+// Create a Primary Business for Constituent, if Relevant.
+
+
+// for ( var i = 1; i <= contact1_organizational_relations; i += 1 ) {
+//
+//     var prefix = makeIndexedPrefix('CnRelOrg', '1', i );
+//
+//     if ( individualConstituentHasAccountRelation( prefix, row ) ) {
+//
+//         var rel = makeAccount1forContact1( prefix, prefix + 'Ph', 5, row );
+//
+//         result.push( duplicateWith( contact1_row, rel ) );
+//
+//     }
+//
+// }
+*
