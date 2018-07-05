@@ -65,6 +65,12 @@ function CSVDataPipeline( sources, target ) {
     self.__secondaryrows = [];
 
 
+    /**
+     * This is the set of keys indexing the corresponding secondary rows to sort with respect to.
+     */
+    self.__sortkeys = [];
+
+
 
     self.__readInputFiles = function( then = function() {}, secondary_files = [] ) {
 
@@ -92,7 +98,9 @@ function CSVDataPipeline( sources, target ) {
 
                     self.__progress.tick( 1 );
 
-                    self.__readInputFiles( then, secondary_files.concat( file ) );
+                    secondary_files.push( file );
+
+                    self.__readInputFiles( then, secondary_files );
 
                 });
 
@@ -218,6 +226,17 @@ function CSVDataPipeline( sources, target ) {
 
     }
 
+    /**
+     * Pass this routine an in-order set of keys to sort the secondary spreadsheets on for lookup.
+     */
+    self.sorts = function( sort_keys ) {
+
+        self.__sortkeys = sort_keys;
+
+        return self;
+
+    }
+
 
     self.target = function( output_csv_path ) {
 
@@ -239,13 +258,40 @@ function CSVDataPipeline( sources, target ) {
             head: '>',
             incomplete: ' ',
             width: 40,
-            total: 2 + self.__transformations.length + self.__validations.length + self.__inputfiles.length + self.__secondaryfiles.length,
+            total: 2 + self.__transformations.length + self.__validations.length + self.__inputfiles.length + self.__secondaryfiles.length + self.__sortkeys.length,
             renderThrottle: 10
         });
 
         self.__rows = [];
 
         self.__readInputFiles( function( ) {
+
+            if ( typeof self.__sortkeys !== 'undefined' && self.__sortkeys.length > 0 ) {
+
+                self.__secondaryrows.forEach( function( file, i ) {
+                    if ( typeof self.__sortkeys[ i ] !== 'undefined' ) {
+
+                        var sort_key = self.__sortkeys[ i ];
+
+                        file.sort( function( a, b ) {
+
+                            if ( a[ sort_key ] < b[ sort_key ] ) {
+                                return -1;
+                            } else if ( a[ sort_key ] > b[ sort_key ] ) {
+                                return 1;
+                            } else {
+                                return 0;
+                            }
+
+                        });
+
+                    }
+
+                    self.__progress.tick( 1 );
+
+                });
+
+            }
 
             self.__rows = self.__transformations.reduce( self.__runTransformation.bind( self ), self.__rows );
 
