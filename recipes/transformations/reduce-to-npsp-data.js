@@ -29,7 +29,7 @@ function compare( a, b ) { return ( a < b ) ? -1 : (( a > b ) ? 1 : 0); }
 
 
 module.exports = RowMapReduce(
-    '(Constituents × Individual Relations × Gifts × Memberships) → NPSP_Import',
+    '(Constituents × Gifts) → NPSP_Import',
     function( row, secondaries ) {
 
         var result = [];
@@ -61,14 +61,14 @@ module.exports = RowMapReduce(
 
             }
 
+            result.push( contact1_primary_affiliations );
+
             // NOTE: Super time consuming operation here which runs in O(m log n),
             // where m is the number of constituents (~16k) and n is the number of gifts (~64k).
             var relevant_gifts_indices = search( gift_ids, contact1_row['Contact1 RE ID __c'], compare );
 
 
             var contact1_gifts = makeDonationSetForConstituent( 'Contact1', relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ) );
-
-            result.push( contact1_primary_affiliations );
 
             contact1_gifts.forEach( function( donation_row ) {
 
@@ -83,6 +83,17 @@ module.exports = RowMapReduce(
 
             result.push( account1_row );
 
+            // NOTE: Super time consuming operation here which runs in O(m log n),
+            // where m is the number of constituents (~16k) and n is the number of gifts (~64k).
+            var relevant_gifts_indices = search( gift_ids, account1_row['Account1 RE ID __c'], compare );
+
+            var account1_gifts = makeDonationSetForConstituent( 'Account1', relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ) );
+
+            account1_gifts.forEach( function( donation_row ) {
+
+                result.push( duplicateWith( account1_row, donation_row ) );
+
+            });
 
         }
 
