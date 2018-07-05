@@ -1,5 +1,7 @@
 'use strict'
 
+
+var unique = require('array-unique');
 var Phone = require('us-phone-parser');
 
 var RowMapReduce = require('./abstracts/row-operator.js').RowMapReduce;
@@ -82,6 +84,8 @@ function makeContact1( row ) {
 
     contact1_row['Contact1 Gender __c'] = normalizeGenderRep( contact1_row['Contact1 Gender __c']  );
     contact1_row['Contact1 Solicit Codes __c'] = condenseSolicitCodes( row );
+    contact1_row['Contact1 Constituent Codes __c'] = condenseConstituentCodes( row );
+    contact1_row['Contact1 Salutation __c'] = condenseSalutation( 'CnBio_', row );
 
     var contact1_primary_address_street = makeStreet( 'CnAdrPrf_', row, ', ' );
 
@@ -122,6 +126,7 @@ function makeAccount1( row ) {
     var account1_row = makeSurjectiveMappingWith( mapping )(row);
 
     account1_row['Account1 Solicit Codes __c'] = condenseSolicitCodes( row );
+    account1_row['Account1 Constituent Codes __c'] = condenseConstituentCodes( row );
 
     var account1_phones_and_emails = {};
 
@@ -187,6 +192,7 @@ function makeContact2forContact1( contact_prefix, phone_prefix, contact_phones_c
     var contact_row = makeSurjectiveMappingWith( mapping )( row );
 
     contact_row[ 'Contact2 Gender __c' ] = normalizeGenderRep( contact_row[ 'Contact2 Gender __c' ] );
+    contact_row['Contact2 Salutation __c'] = condenseSalutation( contact_prefix, row );
 
 
     var contact_phones_and_emails = {};
@@ -444,51 +450,53 @@ function selectPrimaryPhoneForAccount( phones ) {
 
 
 
-/**
- * Condense Solicit Codes here.
- */
-function condenseSolicitCodes( row ) {
 
-    var result = {};
+function condenseSpreadCodes( code_columns, normalize ) {
+    return function( row ) {
 
-    const solicit_code_columns = [
-        "CnSolCd_1_01_Solicit_Code",
-        "CnSolCd_1_02_Solicit_Code",
-        "CnSolCd_1_03_Solicit_Code",
-        "CnSolCd_1_04_Solicit_Code",
-        "CnSolCd_1_05_Solicit_Code",
-        "CnSolCd_1_06_Solicit_Code",
-        "CnSolCd_1_07_Solicit_Code",
-        "CnSolCd_1_08_Solicit_Code",
-        "CnSolCd_1_09_Solicit_Code",
-        "CnSolCd_1_10_Solicit_Code",
-    ];
+        var result = {};
 
+        var codes = [];
 
-    var solicit_codes = [];
+        code_columns.forEach( function( header ) {
 
-    solicit_code_columns.forEach( function( header ) {
+            if ( typeof row[ header ] !== 'undefined') {
 
-        if ( typeof row[ header ] !== 'undefined') {
+                if ( row[ header ] !== '' ) {
+                    var code = normalize( row[ header ] );
 
-            if ( row[ header ] !== '' ) {
-                var code = normalizeSolicitCodeRep( row[ header ] );
+                    if ( code != null ) {
+                        codes.push( code );
+                    }
 
-                if ( code != null ) {
-                    solicit_codes.push( code );
                 }
 
             }
 
-        }
+        });
 
-    });
+        return unique( codes ).join(';');
 
-    return solicit_codes.join(';');
+    }
 
 }
 
+/**
+ * Condense Solicit Codes here.
+ */
 
+const solicit_code_columns = [
+    "CnSolCd_1_01_Solicit_Code",
+    "CnSolCd_1_02_Solicit_Code",
+    "CnSolCd_1_03_Solicit_Code",
+    "CnSolCd_1_04_Solicit_Code",
+    "CnSolCd_1_05_Solicit_Code",
+    "CnSolCd_1_06_Solicit_Code",
+    "CnSolCd_1_07_Solicit_Code",
+    "CnSolCd_1_08_Solicit_Code",
+    "CnSolCd_1_09_Solicit_Code",
+    "CnSolCd_1_10_Solicit_Code",
+];
 
 function normalizeSolicitCodeRep( code ) {
     switch ( code.trim().toLowerCase() ) {
@@ -518,6 +526,282 @@ function normalizeSolicitCodeRep( code ) {
     }
 }
 
+var condenseSolicitCodes = condenseSpreadCodes( solicit_code_columns, normalizeSolicitCodeRep );
+
+const constituent_code_columns = [
+    'CnBio_Constit_Code',
+    'CnCnstncy_1_01_CodeLong',
+    'CnCnstncy_1_02_CodeLong',
+    'CnCnstncy_1_03_CodeLong',
+    'CnCnstncy_1_04_CodeLong',
+    'CnCnstncy_1_05_CodeLong',
+    'CnCnstncy_1_06_CodeLong',
+    'CnCnstncy_1_07_CodeLong'
+];
+
+function normalizeConstituentCodeRep( code ) {
+    switch ( code.trim().toLowerCase() ) {
+
+        case 'artist':
+            return 'Artist';
+
+        case 'artist guild':
+            return 'Artist Guild';
+
+        case 'board member':
+            return 'Board Member';
+
+        case 'board member - lifetime':
+            return 'Board Member - Lifetime';
+
+        case 'business':
+            return 'Business';
+
+        case 'coleman center':
+            return 'Coleman Center';
+
+        case 'corporate/business':
+            return 'Corporation';
+
+        case 'course registrant':
+            return 'Course Registrant';
+
+        case 'event attendee':
+            return 'Event Attendee';
+
+        case 'faculty coleman center':
+            return 'Faculty';
+
+        case 'former board member':
+            return 'Former Board Member';
+
+        case 'former executive director':
+            return 'Former Executive Director';
+
+        case 'former staff':
+            return 'Former Staff';
+
+        case 'foundation':
+            return 'Foundation';
+
+        case 'government':
+            return 'Government';
+
+        case 'library':
+            return 'Library';
+
+        case 'life member':
+            return 'Life Member';
+
+        case 'matching gift company':
+            return 'Matching Gift Company';
+
+        case 'met student':
+            return 'Met Student';
+
+        case 'muse student':
+            return 'Muse Student';
+
+        case 'non-profit organization':
+            return 'Non-profit Organization';
+
+        case 'photo guild':
+            return 'Photo Guild';
+
+        case 'artist/photogrpher':
+        case 'photographer':
+            return 'Photographer';
+
+        case 'prospect':
+            return 'Prospect';
+
+        case 'staff':
+            return 'Staff';
+
+        case 'vendor':
+            return 'Vendor';
+
+        case 'volunteer':
+        case 'griffon shop volunteer':
+            return 'Volunteer';
+
+        case 'wet paint artist':
+            return 'Wet Paint Artist';
+
+        case 'wet paint buyer':
+            return 'Wet Paint Buyer';
+
+        case 'winter speaker series':
+            return 'Winter Speaker Series';
+
+        default:
+            return null;
+
+    }
+}
+
+var condenseConstituentCodes = condenseSpreadCodes( constituent_code_columns, normalizeConstituentCodeRep );
+
+
+
+
+/**
+ * Manage Salutations
+ */
+
+ var invalid = ['', 'Dr. and Dr.', 'Drs.', 'Capt. and Mrs.', 'Mr. and Ms.', 'Mr. and Mrs.', 'Ms. and Mr.', 'Ms. and Ms.', 'Requested no form of address', 'Requested no prefix', 'Rev. and Mrs.', 'The', 'Vice Adm. & Mrs.'];
+
+ var invalid_salutations = {
+     'Male': ['Councilwoman', 'Countess', 'Marquesa', 'Miss', 'Mrs.', 'Sister', 'Ms.' ],
+     'Female': ['Congressman', 'Councilman', 'Count', 'Father', 'Master', 'Sir', 'Brother', 'Mr.'  ]
+ };
+
+function get_salutation( gender, titles ) {
+ if ( gender === 'Unknown' || titles.length === 0  ) { return ''; }
+
+ var title = titles.shift();
+
+ if ( invalid.includes( title ) || invalid_salutations[ gender ].includes( title ) ) {
+
+     return get_salutation( gender, titles );
+
+ } else {
+
+     return normalizeSalutation( title );
+
+ }
+
+}
+
+
+function condenseSalutation( prefix, row ) {
+
+    return get_salutation( row[ prefix + 'Gender' ], [row[ prefix + 'Title_1'], row[ prefix + 'Title_2'] ] );
+
+}
+
+function normalizeSalutation( code ) {
+
+
+
+
+    /**
+
+        Valid Salesforce Salutations.
+
+        Ms.
+        Mr.
+        Mx
+        Mrs.
+        Miss
+        Dr.
+        Professor
+
+        Brigadier General
+        Captain
+        Colonel
+        Commander
+        General
+        Lieutenant Colonel
+        Lieutenant Commander
+        Lieutenant General
+        Major
+        Major General
+        Rear Admiral
+        Sergeant
+
+        Ambassador
+        Councilman
+        Councilwoman
+        Representative
+        Senator
+
+        Brother
+        Father
+        Rabbi
+        Reverend
+        Sister
+
+        Count
+        Countess
+        Honorable
+        Marquesa
+        Sir
+     */
+
+    switch ( code.trim() ) {
+
+        case 'Ms.':
+        case 'Mr.':
+        case 'Dr.':
+        case 'Mx.':
+        case 'Mrs.':
+        case 'Miss':
+        case 'Professor':
+        case 'Colonel':
+        case 'Captain':
+        case 'Rear Admiral':
+        case 'Representative':
+        case 'Rabbi':
+        case 'Ambassador':
+        case 'Commander':
+        case 'Admiral':
+        case 'Major':
+        case 'Brother':
+        case 'Sister':
+        case 'Brigadier General':
+        case 'Sergeant':
+        case 'Major General':
+        case 'Councilwoman':
+        case 'Reverend':
+        case 'General':
+        case 'Councilman':
+        case 'Father':
+        case 'Marquesa':
+        case 'Sir':
+        case 'Countess':
+        case 'Mayor':
+        case 'Congressman':
+        case 'Count':
+        case 'Senator':
+        case 'Master':
+            return code.trim();
+
+        case 'Lt. Gen':
+            return 'Lieutenant General';
+
+        case 'LCDR':
+            return 'Lieutenant Commander';
+
+        case 'Lt. Col.':
+            return 'Lieutenant Colonel';
+
+        case 'Cdr.':
+            return 'Commander';
+
+        case 'The Honorable':
+        case 'Hon.':
+            return 'Honorable';
+
+        case 'Drs.':
+            return 'Dr.';
+
+        case 'The Rt. Rev.':
+        case 'The Reverend':
+            return 'Reverend';
+
+        case 'Rep.':
+            return 'Representative';
+
+        default:
+            return '';
+
+    }
+
+}
+
+
+
 
 
 // Parking Lot
@@ -538,4 +822,3 @@ function normalizeSolicitCodeRep( code ) {
 //     }
 //
 // }
-*
