@@ -5,9 +5,9 @@ function RowOperatorFactory( op, postprocessing = function( x ) { return x; } ) 
         if ( !(this instanceof RowOperator)) { return new RowOperator( name, row_operation ); }
         var self = this;
 
-        self.transformation = function( dataframe ) {
+        self.transformation = function( dataframe, secondary_files ) {
 
-            return postprocessing( dataframe[ op ]( row_operation ) );
+            return postprocessing( dataframe[ op ]( function( row ) { return row_operation( row, secondary_files ); }) );
 
         }
 

@@ -2,6 +2,7 @@
 
 
 var unique = require('array-unique');
+var search = require('binary-search-range');
 var Phone = require('us-phone-parser');
 
 var RowMapReduce = require('./abstracts/row-operator.js').RowMapReduce;
@@ -21,24 +22,33 @@ var constituentsSeenAsSpouses = {};
 // TODO: determine need for this?
 var organizationsSeenAsPrimaryBusiness = {};
 
+/**
+ * Comparator for binary search.
+ */
+function compare( a, b ) { return ( a < b ) ? -1 : (( a > b ) ? 1 : 0); }
+
 
 module.exports = RowMapReduce(
     '(Constituents × Individual Relations × Gifts × Memberships) → NPSP_Import',
-    function( row ) {
+    function( row, secondaries ) {
 
         var result = [];
+
+        var gifts = secondaries[0];
+        var gift_ids = gifts.map( function( g ) { return g['Gf_CnBio_System_ID']; } );
 
         if ( isIndividualConstituent( row ) ) {
 
             // Create a Contact1 representing this Head of Household.
             var contact1_row = makeContact1( row );
+            var contact1_primary_affiliations = duplicateWith( contact1_row, {});
 
             // Create a Spouse for the Constituent, if Relevant.
             if ( individualConstituentHasSpouse( row ) ) {
 
                 var spouse = makeContact2forContact1( 'CnSpSpBio_', 'CnSpPh', 3, row );
 
-                contact1_row = merge( contact1_row, spouse );
+                contact1_primary_affiliations = merge( contact1_primary_affiliations, spouse );
 
             }
 
@@ -47,12 +57,24 @@ module.exports = RowMapReduce(
 
                 var account = makeAccount1forContact1('CnPrBs_', 'CnPrBsPh', 5, row );
 
-                contact1_row = merge( contact1_row, account );
+                contact1_primary_affiliations = merge( contact1_primary_affiliations, account );
 
             }
 
-            result.push( contact1_row );
+            // NOTE: Super time consuming operation here which runs in O(m log n),
+            // where m is the number of constituents (~16k) and n is the number of gifts (~64k).
+            var relevant_gifts_indices = search( gift_ids, contact1_row['Contact1 RE ID __c'], compare );
 
+
+            var contact1_gifts = makeDonationSetForConstituent( 'Contact1', relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ) );
+
+            result.push( contact1_primary_affiliations );
+
+            contact1_gifts.forEach( function( donation_row ) {
+
+                result.push( duplicateWith( contact1_row, donation_row ) );
+
+            });
 
         } else if ( isOrganizationalConstituent( row ) ) {
 
@@ -111,6 +133,7 @@ function makeContact1( row ) {
     return merge( contact1_row, contact1_phones_and_emails );
 
 }
+
 
 
 /**
@@ -231,6 +254,71 @@ function makeAccount1forContact1( account_prefix, phone_prefix, contact_phones_c
     return account_row;
 
 }
+
+
+/**
+ * Donation-Related Logic
+ *
+ */
+function makeDonationSetForConstituent( constituent_type, gift_rows ) {
+
+    var result_rows = [];
+
+    gift_rows.forEach( function( gift ) {
+
+        // TODO: Extend the implementation to ALL gift types.
+        // For now, we are only handling simple, non-pledge, non-membership, Cash gifts.
+        if ( isSimpleGift( gift ) ) {
+
+            var mapping = {};
+
+            mapping['Gf_Amount'] = 'Donation Amount __c';
+            mapping['Gf_Date'] = 'Donation Date __c';
+            mapping['Gf_Description'] = 'Donation Description __c';
+            mapping['Gf_Campaign'] = 'Donation RE Campaign __c';
+            mapping['Gf_Appeal'] = 'Donation RE Appeal __c';
+            mapping['Gf_Fund'] = 'Donation RE Fund __c';
+            mapping['Gf_System_ID'] = 'Donation RE ID __c';
+            mapping['Gf_Pay_method'] = 'Payment Method __c';
+            mapping['Gf_Check_number'] = 'Payment Check/Reference Number __c';
+
+
+            var donation_row = makeSurjectiveMappingWith( mapping )( gift );
+
+            donation_row['Donation Date __c'] = format_date( donation_row['Donation Date __c'] );
+            donation_row['Donation Record Type Name __c'] = 'Donation (Cash)';
+            donation_row['Donation Type __c'] = 'Cash';
+            donation_row['Donation Stage __c'] = ''; // Defaults to Closed/Won, which is what we want for this type of simple gift.
+            donation_row['Donation Acknowledgement Status'] = 'Acknowledged';
+            donation_row['Donation Donor __c'] = constituent_type; // NOTE: One of Account1 or Contact1
+            donation_row['Donation Campaign Name __c'] = donation_row['Donation RE Appeal __c'];
+
+            donation_row['Payment Date __c'] = format_date( gift.Gf_Check_date || gift.Gf_Date );
+
+            result_rows.push( donation_row );
+
+        }
+
+    });
+
+    return result_rows;
+
+}
+
+function isSimpleGift( gift ) {
+
+    var campaign = ( typeof gift.Gf_Campaign !== 'undefined') ? gift.Gf_Campaign.toLowerCase() : '';
+    var fund = ( typeof gift.Gf_Fund !== 'undefined') ? gift.Gf_Fund.toLowerCase() : '';
+    var frequency = ( typeof gift.Gf_Installmnt_Frqncy !== 'undefined') ? gift.Gf_Installmnt_Frqncy.toLowerCase() : '';
+    var type = ( typeof gift.Gf_Type !== 'undefined') ? gift.Gf_Type.toLowerCase() : ''
+
+    // The membership is a cash gift - meaning it's in the books, and it's not for membership, so we can treat it simply.
+    // NOTE: Go through all gift-types with leslie tomorrow.
+    return campaign !== 'membership' && fund !== 'membership' && type === 'cash';
+
+}
+
+
 
 /**
  * there will be no Contact2 <=> Account2 relationships in this import.
@@ -801,6 +889,66 @@ function normalizeSalutation( code ) {
 }
 
 
+/**
+ * Deal with Date Formatting for Salesforce Import
+ *
+ */
+function format_date( date ) {
+
+    if ( typeof date !== 'undefined' && date !== '' ) {
+
+        try {
+
+            var split_date = date.split('/');
+
+            split_date = split_date.map( function( a ) {
+
+                if ( a.length === 4 ) {
+
+                    return a.slice( 2, 4 );
+
+                } else if ( a.length === 2 ) {
+
+                    return a;
+
+                } else if ( a.length === 1 ) {
+
+                    return '0' + a;
+
+                } else {
+
+                    return 'error';
+
+                }
+
+            });
+
+            var two_slashes = split_date.length == 3;
+
+            var units_valid = split_date.reduce( function( a, b ) {
+
+                var pattern = /^[0-9]+$/i;
+
+                var is_number = pattern.test( b );
+
+                return a && is_number && (b.length === 1 || b.length === 2 || b.length === 4 );
+
+            }, true);
+
+            return ( two_slashes && units_valid ) ? [split_date[0], split_date[1], split_date[2]].join('/') : '';
+
+        } catch ( e ) {
+
+            return '';
+
+        }
+
+    } else {
+
+        return '';
+    }
+
+}
 
 
 

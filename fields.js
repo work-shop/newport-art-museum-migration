@@ -163,6 +163,7 @@ fields.NPSPImport = {
         'Donation Membership Origin __c', // Not sure what this is for. Skip for now.
         'Donation Membership Start Date __c', // The start date of the membership if the donation is for a membership.
         'Donation Membership End Date __c', // The end date of the membership if the donation is for a membership.
+        'Donation Campaign Name __c',
         'Donation RE Campaign __c', // Tries to match an existing campaign by name. If no match is found, will create a new campaign.
         'Donation RE Appeal __c',
         'Donation RE Fund __c',
@@ -171,7 +172,7 @@ fields.NPSPImport = {
         'Donation Acknowledgement Status',
         'Payment Method __c', // The pay-method for this donation
         'Payment Date __c',
-        'Payment Check/Reference Number' // The check or ref number, if there is one.
+        'Payment Check/Reference Number __c' // The check or ref number, if there is one.
     ]
 };
 
