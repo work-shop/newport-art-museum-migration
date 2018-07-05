@@ -4,6 +4,8 @@
 var unique = require('array-unique');
 var search = require('binary-search-range');
 var Phone = require('us-phone-parser');
+var makeAddress = require('addressit');
+var addressParser = require('parse-address');
 
 var RowMapReduce = require('./abstracts/row-operator.js').RowMapReduce;
 
@@ -14,13 +16,6 @@ const contact1_phones_count = 5;
 const contact1_individual_relations = 5;
 
 const contact1_organizational_relations = 5;
-
-
-// TODO: determine need for this?
-var constituentsSeenAsSpouses = {};
-
-// TODO: determine need for this?
-var organizationsSeenAsPrimaryBusiness = {};
 
 /**
  * Comparator for binary search.
@@ -65,7 +60,7 @@ module.exports = RowMapReduce(
 
             // NOTE: Super time consuming operation here which runs in O(m log n),
             // where m is the number of constituents (~16k) and n is the number of gifts (~64k).
-            var relevant_gifts_indices = search( gift_ids, contact1_row['Contact1 RE ID __c'], compare );
+            var relevant_gifts_indices = search( gift_ids, contact1_row['Contact1 RE ID'], compare );
 
 
             var contact1_gifts = makeDonationSetForConstituent( 'Contact1', relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ) );
@@ -85,7 +80,7 @@ module.exports = RowMapReduce(
 
             // NOTE: Super time consuming operation here which runs in O(m log n),
             // where m is the number of constituents (~16k) and n is the number of gifts (~64k).
-            var relevant_gifts_indices = search( gift_ids, account1_row['Account1 RE ID __c'], compare );
+            var relevant_gifts_indices = search( gift_ids, account1_row['Account1 RE ID'], compare );
 
             var account1_gifts = makeDonationSetForConstituent( 'Account1', relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ) );
 
@@ -106,30 +101,31 @@ module.exports = RowMapReduce(
 function makeContact1( row ) {
 
     var contact1_row = makeSurjectiveMappingWith({
-        'CnBio_Birth_date' : 'Contact1 Birthdate __c',
-        'CnBio_Title_1' : 'Contact1 Salutation __c',
-        'CnBio_First_Name' : 'Contact1 First Name __c',
-        'CnBio_Last_Name' : 'Contact1 Last Name __c',
-        'CnBio_Middle_Name' : 'Contact1 Middle Name __c',
-        'CnBio_System_ID' : 'Contact1 RE ID __c',
-        'CnBio_Gender' : 'Contact1 Gender __c'
+        'CnBio_Birth_date' : 'Contact1 Birthdate',
+        'CnBio_Title_1' : 'Contact1 Salutation',
+        'CnBio_First_Name' : 'Contact1 First Name',
+        'CnBio_Last_Name' : 'Contact1 Last Name',
+        'CnBio_Middle_Name' : 'Contact1 Middle Name',
+        'CnBio_System_ID' : 'Contact1 RE ID',
+        'CnBio_Gender' : 'Contact1 Gender'
     })( row );
 
-    contact1_row['Contact1 Gender __c'] = normalizeGenderRep( contact1_row['Contact1 Gender __c']  );
-    contact1_row['Contact1 Solicit Codes __c'] = condenseSolicitCodes( row );
-    contact1_row['Contact1 Constituent Codes __c'] = condenseConstituentCodes( row );
-    contact1_row['Contact1 Salutation __c'] = condenseSalutation( 'CnBio_', row );
+    contact1_row['Contact1 Gender'] = normalizeGenderRep( contact1_row['Contact1 Gender']  );
+    contact1_row['Contact1 Solicit Codes'] = condenseSolicitCodes( row );
+    contact1_row['Contact1 Constituent Codes'] = condenseConstituentCodes( row );
+    contact1_row['Contact1 Salutation'] = condenseSalutation( 'CnBio_', row );
 
     var contact1_primary_address_street = makeStreet( 'CnAdrPrf_', row, ', ' );
 
     var contact1_primary_address = makeSurjectiveMappingWith({
-        'CnAdrPrf_City': 'Home City __c',
-        'CnAdrPrf_State': 'Home State/Province __c',
-        'CnAdrPrf_ZIP': 'Home Zip/Postal Code __c',
-        'CnAdrPrf_ContryLongDscription': 'Home Country __c'
+        'CnAdrPrf_City': 'Home City',
+        'CnAdrPrf_State': 'Home State/Province',
+        'CnAdrPrf_ZIP': 'Home Zip/Postal Code',
+        'CnAdrPrf_ContryLongDscription': 'Home Country'
     })( row );
 
-    contact1_primary_address = merge( contact1_primary_address, contact1_primary_address_street );
+    contact1_primary_address = validateAddress( 'Home', merge( contact1_primary_address, contact1_primary_address_street ) );
+
     contact1_row = merge( contact1_row, contact1_primary_address );
 
     var contact1_phones_and_emails = {};
@@ -154,13 +150,13 @@ function makeAccount1( row ) {
 
     var mapping = {};
 
-    mapping[ 'CnBio_Org_Name' ] = 'Account1 Name __c';
-    mapping[ 'CnBio_System_ID' ] = 'Account1 RE ID __c';
+    mapping[ 'CnBio_Org_Name' ] = 'Account1 Name';
+    mapping[ 'CnBio_System_ID' ] = 'Account1 RE ID';
 
     var account1_row = makeSurjectiveMappingWith( mapping )(row);
 
-    account1_row['Account1 Solicit Codes __c'] = condenseSolicitCodes( row );
-    account1_row['Account1 Constituent Codes __c'] = condenseConstituentCodes( row );
+    account1_row['Account1 Solicit Codes'] = condenseSolicitCodes( row );
+    account1_row['Account1 Constituent Codes'] = condenseConstituentCodes( row );
 
     var account1_phones_and_emails = {};
 
@@ -170,16 +166,16 @@ function makeAccount1( row ) {
 
     var account1_phone = selectPrimaryPhoneForAccount( account1_phones_and_emails );
 
-    account1_row['Account1 Phone __c'] = account1_phone;
+    account1_row['Account1 Phone'] = account1_phone;
 
     var account1_primary_address = makeSurjectiveMappingWith({
-        'CnAdrPrf_City': 'Account1 City __c',
-        'CnAdrPrf_State': 'Account1 State/Province __c',
-        'CnAdrPrf_ZIP': 'Account1 Zip/Postal Code __c',
-        'CnAdrPrf_ContryLongDscription': 'Account1 Country __c'
+        'CnAdrPrf_City': 'Account1 City',
+        'CnAdrPrf_State': 'Account1 State/Province',
+        'CnAdrPrf_ZIP': 'Account1 Zip/Postal Code',
+        'CnAdrPrf_ContryLongDscription': 'Account1 Country'
     })( row );
 
-    account1_primary_address['Account1 Street __c'] = makeStreet( 'CnAdrPrf_', row, ', ' )['Home Street __c'];
+    account1_primary_address['Account1 Street'] = makeStreet( 'CnAdrPrf_', row, ', ' )['Home Street'];
 
     account1_row = merge( account1_row, account1_primary_address );
 
@@ -214,19 +210,19 @@ function makeContact2forContact1( contact_prefix, phone_prefix, contact_phones_c
 
     var mapping = {};
 
-    mapping[ contact_prefix + 'Birth_date' ] = 'Contact2 Birthdate __c';
-    mapping[ contact_prefix + 'Title_1' ] = 'Contact2 Salutation __c';
-    mapping[ contact_prefix + 'First_Name' ] = 'Contact2 First Name __c';
-    mapping[ contact_prefix + 'Last_Name' ] = 'Contact2 Last Name __c';
-    mapping[ contact_prefix + 'Middle_Name' ] = 'Contact2 Middle Name __c';
-    mapping[ contact_prefix + 'System_ID' ] = 'Contact2 RE ID __c';
-    mapping[ contact_prefix + 'Gender' ] = 'Contact2 Gender __c';
+    mapping[ contact_prefix + 'Birth_date' ] = 'Contact2 Birthdate';
+    mapping[ contact_prefix + 'Title_1' ] = 'Contact2 Salutation';
+    mapping[ contact_prefix + 'First_Name' ] = 'Contact2 First Name';
+    mapping[ contact_prefix + 'Last_Name' ] = 'Contact2 Last Name';
+    mapping[ contact_prefix + 'Middle_Name' ] = 'Contact2 Middle Name';
+    mapping[ contact_prefix + 'System_ID' ] = 'Contact2 RE ID';
+    mapping[ contact_prefix + 'Gender' ] = 'Contact2 Gender';
 
 
     var contact_row = makeSurjectiveMappingWith( mapping )( row );
 
-    contact_row[ 'Contact2 Gender __c' ] = normalizeGenderRep( contact_row[ 'Contact2 Gender __c' ] );
-    contact_row['Contact2 Salutation __c'] = condenseSalutation( contact_prefix, row );
+    contact_row[ 'Contact2 Gender' ] = normalizeGenderRep( contact_row[ 'Contact2 Gender' ] );
+    contact_row['Contact2 Salutation'] = condenseSalutation( contact_prefix, row );
 
 
     var contact_phones_and_emails = {};
@@ -249,18 +245,18 @@ function makeAccount1forContact1( account_prefix, phone_prefix, contact_phones_c
 
     var mapping = {};
 
-    mapping[ account_prefix + 'Org_Name' ] = 'Account1 Name __c';
-    mapping[ account_prefix + 'Adr_City' ] = 'Account1 City __c';
-    mapping[ account_prefix + 'Adr_State' ] = 'Account1 State/Province __c';
-    mapping[ account_prefix + 'Adr_ZIP' ] = 'Account1 Zip/Postal Code __c';
-    mapping[ account_prefix + 'Adr_ContryLongDscription' ] = 'Account1 Country __c';
-    mapping[ account_prefix + 'System_ID' ] = 'Account1 RE ID __c';
-    mapping[ account_prefix + 'Ph_1_01_Phone_number' ] = 'Account1 Phone __c';
+    mapping[ account_prefix + 'Org_Name' ] = 'Account1 Name';
+    mapping[ account_prefix + 'Adr_City' ] = 'Account1 City';
+    mapping[ account_prefix + 'Adr_State' ] = 'Account1 State/Province';
+    mapping[ account_prefix + 'Adr_ZIP' ] = 'Account1 Zip/Postal Code';
+    mapping[ account_prefix + 'Adr_ContryLongDscription' ] = 'Account1 Country';
+    mapping[ account_prefix + 'System_ID' ] = 'Account1 RE ID';
+    mapping[ account_prefix + 'Ph_1_01_Phone_number' ] = 'Account1 Phone';
 
     var account_row = makeSurjectiveMappingWith( mapping )( row );
 
-    account_row[ 'Account1 Phone __c' ]  = formatPhone( account_row[ 'Account1 Phone __c' ] );
-    account_row['Account1 Street __c'] = makeStreet( account_prefix + 'Adr_', row, ', ' )[ 'Home Street __c' ];
+    account_row[ 'Account1 Phone' ]  = formatPhone( account_row[ 'Account1 Phone' ] );
+    account_row['Account1 Street'] = makeStreet( account_prefix + 'Adr_', row, ', ' )[ 'Home Street' ];
 
     return account_row;
 
@@ -283,28 +279,29 @@ function makeDonationSetForConstituent( constituent_type, gift_rows ) {
 
             var mapping = {};
 
-            mapping['Gf_Amount'] = 'Donation Amount __c';
-            mapping['Gf_Date'] = 'Donation Date __c';
-            mapping['Gf_Description'] = 'Donation Description __c';
-            mapping['Gf_Campaign'] = 'Donation RE Campaign __c';
-            mapping['Gf_Appeal'] = 'Donation RE Appeal __c';
-            mapping['Gf_Fund'] = 'Donation RE Fund __c';
-            mapping['Gf_System_ID'] = 'Donation RE ID __c';
-            mapping['Gf_Pay_method'] = 'Payment Method __c';
-            mapping['Gf_Check_number'] = 'Payment Check/Reference Number __c';
+            mapping['Gf_Amount'] = 'Donation Amount';
+            mapping['Gf_Date'] = 'Donation Date';
+            mapping['Gf_Description'] = 'Donation Description';
+            mapping['Gf_Campaign'] = 'Donation RE Campaign';
+            mapping['Gf_Appeal'] = 'Donation RE Appeal';
+            mapping['Gf_Fund'] = 'Donation RE Fund';
+            mapping['Gf_System_ID'] = 'Donation RE ID';
+            mapping['Gf_Pay_method'] = 'Payment Method';
+            mapping['Gf_Check_number'] = 'Payment Check/Reference Number';
 
 
             var donation_row = makeSurjectiveMappingWith( mapping )( gift );
 
-            donation_row['Donation Date __c'] = format_date( donation_row['Donation Date __c'] );
-            donation_row['Donation Record Type Name __c'] = 'Donation (Cash)';
-            donation_row['Donation Type __c'] = 'Cash';
-            donation_row['Donation Stage __c'] = ''; // Defaults to Closed/Won, which is what we want for this type of simple gift.
+            donation_row['Donation Amount'] = formatCurrency( donation_row['Donation Amount'] );
+            donation_row['Donation Date'] = format_date( donation_row['Donation Date'] );
+            donation_row['Donation Record Type Name'] = 'Donation (Cash)';
+            donation_row['Donation Type'] = 'Cash';
+            donation_row['Donation Stage'] = ''; // Defaults to Closed/Won, which is what we want for this type of simple gift.
             donation_row['Donation Acknowledgement Status'] = 'Acknowledged';
-            donation_row['Donation Donor __c'] = constituent_type; // NOTE: One of Account1 or Contact1
-            donation_row['Donation Campaign Name __c'] = donation_row['Donation RE Appeal __c'];
+            donation_row['Donation Donor'] = constituent_type; // NOTE: One of Account1 or Contact1
+            donation_row['Donation Campaign Name'] = donation_row['Donation RE Appeal'];
 
-            donation_row['Payment Date __c'] = format_date( gift.Gf_Check_date || gift.Gf_Date );
+            donation_row['Payment Date'] = format_date( gift.Gf_Check_date || gift.Gf_Date );
 
             result_rows.push( donation_row );
 
@@ -326,6 +323,21 @@ function isSimpleGift( gift ) {
     // The membership is a cash gift - meaning it's in the books, and it's not for membership, so we can treat it simply.
     // NOTE: Go through all gift-types with leslie tomorrow.
     return campaign !== 'membership' && fund !== 'membership' && type === 'cash';
+
+}
+
+
+function formatCurrency( amt ) {
+
+    try {
+
+        return parseFloat( amt.replace('$', '' ).replace(',', '', 'g') );
+
+    } catch( e ) {
+
+        return "";
+
+    }
 
 }
 
@@ -365,7 +377,7 @@ function makeStreet( prefix, row, sep = ', ' ) {
         street += sep + l3;
     }
 
-    return { 'Home Street __c': street };
+    return { 'Home Street': street };
 
 }
 
@@ -527,13 +539,13 @@ function formatPhone( number ) {
 
 function selectPrimaryPhoneForAccount( phones ) {
 
-    if ( typeof phones['Account1 Preferred Phone __c'] !== 'undefined' ) {
+    if ( typeof phones['Account1 Preferred Phone'] !== 'undefined' ) {
 
-        var preferred = phones['Account1 Preferred Phone __c'];
+        var preferred = phones['Account1 Preferred Phone'];
 
-        if ( typeof phones['Account1 ' + preferred + ' Phone __c'] !== 'undefined' ) {
+        if ( typeof phones['Account1 ' + preferred + ' Phone'] !== 'undefined' ) {
 
-            return phones['Account1 ' + preferred + ' Phone __c'];
+            return phones['Account1 ' + preferred + ' Phone'];
 
         }
 
@@ -546,6 +558,59 @@ function selectPrimaryPhoneForAccount( phones ) {
     return phones[0] || '';
 
 }
+
+function validateAddress( prefix, row ) {
+
+    var street = row[ prefix + ' Street' ];
+    var city = row[ prefix + ' City' ];
+    var state = row[ prefix + ' State/Province' ];
+    var zip = row[ prefix + ' Zip/Postal Code' ];
+    var country = row[ prefix + ' Country' ];
+
+    var address_text = [ street.replace(',', '', 'g'), city, state + ' ' + zip, country ].join(', ')
+    var address = addressParser.parseLocation( address_text );
+
+    if (
+           address && address !== null
+        && typeof address.street !== 'undefined'
+        && typeof address.type !== 'undefined'
+        && typeof address.city !== 'undefined'
+        && typeof address.state !== 'undefined'
+        && typeof address.zip !== 'undefined'
+    ) {
+
+        row[ prefix + ' Country' ] = 'United States';
+
+    } else {
+
+        if ( street.toLowerCase().indexOf('address') !== -1 ) {
+
+            row[ 'FLAG: Bad Address' ] = 'Y';
+
+        } else if ( street.toLowerCase().indexOf( 'dupe' ) !== -1 ) {
+
+            row[ 'FLAG: Bad Address' ] = 'Y';
+            row[ 'FLAG: Duplicate Record' ] = 'Y';
+
+        } else if ( street === '' ) {
+
+            row[ 'FLAG: Bad Address' ] = 'Y';
+
+        } else {
+
+        }
+
+    }
+
+    // console.log('\n');
+    // console.log( address_text )
+    // console.log( address );
+    // console.log('\n');
+
+    return row;
+
+}
+
 
 
 

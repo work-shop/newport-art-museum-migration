@@ -33,6 +33,7 @@
   },
   "homepage": "https://github.com/work-shop/newport-art-museum-migration#readme",
   "dependencies": {
+    "addressit": "^1.6.0",
     "array-sort": "^1.0.0",
     "array-unique": "^0.3.2",
     "babel-runtime": "^6.26.0",
@@ -42,6 +43,7 @@
     "md5": "^2.2.1",
     "moment": "^2.22.2",
     "pandas-js": "^0.2.4",
+    "parse-address": "0.0.10",
     "parse-csv": "^0.2.0",
     "progress": "^2.0.0",
     "us-phone-parser": "^1.0.2"
