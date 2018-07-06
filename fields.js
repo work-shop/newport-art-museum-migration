@@ -169,6 +169,7 @@ fields.NPSPImport = {
         'Donation RE Fund',
         'Donation RE ID',
         'Donation RE Membership ID',
+        'Donation RE Batch Number',
         'Donation Acknowledgement Status',
         'Payment Method', // The pay-method for this donation
         'Payment Date',

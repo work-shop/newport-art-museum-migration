@@ -110,6 +110,7 @@ function makeContact1( row ) {
         'CnBio_Gender' : 'Contact1 Gender'
     })( row );
 
+    contact1_row['Contact1 Birthdate'] = format_date( contact1_row['Contact1 Birthdate'] );
     contact1_row['Contact1 Gender'] = normalizeGenderRep( contact1_row['Contact1 Gender']  );
     contact1_row['Contact1 Solicit Codes'] = condenseSolicitCodes( row );
     contact1_row['Contact1 Constituent Codes'] = condenseConstituentCodes( row );
@@ -221,6 +222,7 @@ function makeContact2forContact1( contact_prefix, phone_prefix, contact_phones_c
 
     var contact_row = makeSurjectiveMappingWith( mapping )( row );
 
+    contact_row['Contact2 Birthdate'] = format_date( contact_row['Contact2 Birthdate'] );
     contact_row[ 'Contact2 Gender' ] = normalizeGenderRep( contact_row[ 'Contact2 Gender' ] );
     contact_row['Contact2 Salutation'] = condenseSalutation( contact_prefix, row );
 
@@ -288,6 +290,7 @@ function makeDonationSetForConstituent( constituent_type, gift_rows ) {
             mapping['Gf_System_ID'] = 'Donation RE ID';
             mapping['Gf_Pay_method'] = 'Payment Method';
             mapping['Gf_Check_number'] = 'Payment Check/Reference Number';
+            mapping['Gf_Batch_Number'] = 'Donation RE Batch Number';
 
 
             var donation_row = makeSurjectiveMappingWith( mapping )( gift );
@@ -490,7 +493,7 @@ function makePhonesAndEmails( pre_header_prefix, post_header_prefix, row ) {
     };
 
 
-    function header( type ) { return post_header_prefix + ' ' + type + ' __c'; }
+    function header( type ) { return post_header_prefix + ' ' + type; }
 
     function get_type( value ) { return ( value.indexOf( 'Email' ) !== -1) ? 'Email' : 'Phone'; }
 
