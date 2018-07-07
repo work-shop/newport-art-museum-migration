@@ -72,3 +72,5 @@ target-data
 
 # Google sheets upload data.
 .googlesheets.conf
+
+.DS_Store

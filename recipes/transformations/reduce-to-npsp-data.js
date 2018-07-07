@@ -2,11 +2,16 @@
 
 
 var unique = require('array-unique');
-var search = require('binary-search-range');
 var Phone = require('us-phone-parser');
 var makeAddress = require('addressit');
 var addressParser = require('parse-address');
 
+var merge = require('./extensions/objects.js').merge;
+var duplicateWith = require('./extensions/objects.js').duplicateWith;
+var makeSurjectiveMappingWith = require('./extensions/objects.js').makeSurjectiveMappingWith;
+
+var format_date = require('./extensions/format-date.js');
+var reformatGiftsToDonationsAndPayments = require('./extensions/reduce-npsp-donations.js');
 var RowMapReduce = require('./abstracts/row-operator.js').RowMapReduce;
 
 const contact1_addresses_count = 5;
@@ -17,11 +22,6 @@ const contact1_individual_relations = 5;
 
 const contact1_organizational_relations = 5;
 
-/**
- * Comparator for binary search.
- */
-function compare( a, b ) { return ( a < b ) ? -1 : (( a > b ) ? 1 : 0); }
-
 
 module.exports = RowMapReduce(
     '(Constituents × Gifts) → NPSP_Import',
@@ -30,7 +30,8 @@ module.exports = RowMapReduce(
         var result = [];
 
         var gifts = secondaries[0];
-        var gift_ids = gifts.map( function( g ) { return g['Gf_CnBio_System_ID']; } );
+        var memberships = secondaries[1];
+
 
         if ( isIndividualConstituent( row ) ) {
 
@@ -58,12 +59,12 @@ module.exports = RowMapReduce(
 
             result.push( contact1_primary_affiliations );
 
-            // NOTE: Super time consuming operation here which runs in O(m log n),
-            // where m is the number of constituents (~16k) and n is the number of gifts (~64k).
-            var relevant_gifts_indices = search( gift_ids, contact1_row['Contact1 RE ID'], compare );
-
-
-            var contact1_gifts = makeDonationSetForConstituent( 'Contact1', relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ) );
+            var contact1_gifts = reformatGiftsToDonationsAndPayments(
+                'Contact1',
+                contact1_row,
+                gifts,
+                memberships
+            );
 
             contact1_gifts.forEach( function( donation_row ) {
 
@@ -78,11 +79,12 @@ module.exports = RowMapReduce(
 
             result.push( account1_row );
 
-            // NOTE: Super time consuming operation here which runs in O(m log n),
-            // where m is the number of constituents (~16k) and n is the number of gifts (~64k).
-            var relevant_gifts_indices = search( gift_ids, account1_row['Account1 RE ID'], compare );
-
-            var account1_gifts = makeDonationSetForConstituent( 'Account1', relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ) );
+            var account1_gifts = reformatGiftsToDonationsAndPayments(
+                'Account1',
+                account1_row,
+                gifts,
+                memberships
+            );
 
             account1_gifts.forEach( function( donation_row ) {
 
@@ -98,6 +100,10 @@ module.exports = RowMapReduce(
 );
 
 
+
+/**
+ * Make a primary Contact1 record for a given head-of-household in the RE export.
+ */
 function makeContact1( row ) {
 
     var contact1_row = makeSurjectiveMappingWith({
@@ -107,7 +113,7 @@ function makeContact1( row ) {
         'CnBio_Last_Name' : 'Contact1 Last Name',
         'CnBio_Middle_Name' : 'Contact1 Middle Name',
         'CnBio_System_ID' : 'Contact1 RE ID',
-        'CnBio_Gender' : 'Contact1 Gender'
+        'CnBio_Gender' : 'Contact1 Gender',
     })( row );
 
     contact1_row['Contact1 Birthdate'] = format_date( contact1_row['Contact1 Birthdate'] );
@@ -115,6 +121,7 @@ function makeContact1( row ) {
     contact1_row['Contact1 Solicit Codes'] = condenseSolicitCodes( row );
     contact1_row['Contact1 Constituent Codes'] = condenseConstituentCodes( row );
     contact1_row['Contact1 Salutation'] = condenseSalutation( 'CnBio_', row );
+    contact1_row['Contact1 Suffix'] = condenseSuffix( row['CnBio_Suffix_1'], row['CnBio_Suffix_2'] );
 
     var contact1_primary_address_street = makeStreet( 'CnAdrPrf_', row, ', ' );
 
@@ -136,6 +143,10 @@ function makeContact1( row ) {
          var record = makePhonesAndEmails( makeIndexedPrefix('CnPh', '1', i ), 'Contact1', row );
          contact1_phones_and_emails = merge( contact1_phones_and_emails, record );
 
+    }
+
+    if ( typeof contact1_phones_and_emails['Contact1 Home Phone'] !== 'undefined' && contact1_phones_and_emails['Contact1 Home Phone'].length > 0 ) {
+        contact1_phones_and_emails['Household Phone'] = contact1_phones_and_emails['Contact1 Home Phone'];
     }
 
     return merge( contact1_row, contact1_phones_and_emails );
@@ -219,13 +230,12 @@ function makeContact2forContact1( contact_prefix, phone_prefix, contact_phones_c
     mapping[ contact_prefix + 'System_ID' ] = 'Contact2 RE ID';
     mapping[ contact_prefix + 'Gender' ] = 'Contact2 Gender';
 
-
     var contact_row = makeSurjectiveMappingWith( mapping )( row );
 
     contact_row['Contact2 Birthdate'] = format_date( contact_row['Contact2 Birthdate'] );
     contact_row[ 'Contact2 Gender' ] = normalizeGenderRep( contact_row[ 'Contact2 Gender' ] );
     contact_row['Contact2 Salutation'] = condenseSalutation( contact_prefix, row );
-
+    contact_row['Contact2 Suffix'] = condenseSuffix( row[ contact_prefix + 'Suffix_1' ], row[ contact_prefix + 'Suffix_2' ] );
 
     var contact_phones_and_emails = {};
 
@@ -258,89 +268,9 @@ function makeAccount1forContact1( account_prefix, phone_prefix, contact_phones_c
     var account_row = makeSurjectiveMappingWith( mapping )( row );
 
     account_row[ 'Account1 Phone' ]  = formatPhone( account_row[ 'Account1 Phone' ] );
-    account_row['Account1 Street'] = makeStreet( account_prefix + 'Adr_', row, ', ' )[ 'Home Street' ];
+    account_row[ 'Account1 Street' ] = makeStreet( account_prefix + 'Adr_', row, ', ' )[ 'Home Street' ];
 
     return account_row;
-
-}
-
-
-/**
- * Donation-Related Logic
- *
- */
-function makeDonationSetForConstituent( constituent_type, gift_rows ) {
-
-    var result_rows = [];
-
-    gift_rows.forEach( function( gift ) {
-
-        // TODO: Extend the implementation to ALL gift types.
-        // For now, we are only handling simple, non-pledge, non-membership, Cash gifts.
-        if ( isSimpleGift( gift ) ) {
-
-            var mapping = {};
-
-            mapping['Gf_Amount'] = 'Donation Amount';
-            mapping['Gf_Date'] = 'Donation Date';
-            mapping['Gf_Description'] = 'Donation Description';
-            mapping['Gf_Campaign'] = 'Donation RE Campaign';
-            mapping['Gf_Appeal'] = 'Donation RE Appeal';
-            mapping['Gf_Fund'] = 'Donation RE Fund';
-            mapping['Gf_System_ID'] = 'Donation RE ID';
-            mapping['Gf_Pay_method'] = 'Payment Method';
-            mapping['Gf_Check_number'] = 'Payment Check/Reference Number';
-            mapping['Gf_Batch_Number'] = 'Donation RE Batch Number';
-
-
-            var donation_row = makeSurjectiveMappingWith( mapping )( gift );
-
-            donation_row['Donation Amount'] = formatCurrency( donation_row['Donation Amount'] );
-            donation_row['Donation Date'] = format_date( donation_row['Donation Date'] );
-            donation_row['Donation Record Type Name'] = 'Donation (Cash)';
-            donation_row['Donation Type'] = 'Cash';
-            donation_row['Donation Stage'] = ''; // Defaults to Closed/Won, which is what we want for this type of simple gift.
-            donation_row['Donation Acknowledgement Status'] = 'Acknowledged';
-            donation_row['Donation Donor'] = constituent_type; // NOTE: One of Account1 or Contact1
-            donation_row['Donation Campaign Name'] = donation_row['Donation RE Appeal'];
-
-            donation_row['Payment Date'] = format_date( gift.Gf_Check_date || gift.Gf_Date );
-
-            result_rows.push( donation_row );
-
-        }
-
-    });
-
-    return result_rows;
-
-}
-
-function isSimpleGift( gift ) {
-
-    var campaign = ( typeof gift.Gf_Campaign !== 'undefined') ? gift.Gf_Campaign.toLowerCase() : '';
-    var fund = ( typeof gift.Gf_Fund !== 'undefined') ? gift.Gf_Fund.toLowerCase() : '';
-    var frequency = ( typeof gift.Gf_Installmnt_Frqncy !== 'undefined') ? gift.Gf_Installmnt_Frqncy.toLowerCase() : '';
-    var type = ( typeof gift.Gf_Type !== 'undefined') ? gift.Gf_Type.toLowerCase() : ''
-
-    // The membership is a cash gift - meaning it's in the books, and it's not for membership, so we can treat it simply.
-    // NOTE: Go through all gift-types with leslie tomorrow.
-    return campaign !== 'membership' && fund !== 'membership' && type === 'cash';
-
-}
-
-
-function formatCurrency( amt ) {
-
-    try {
-
-        return parseFloat( amt.replace('$', '' ).replace(',', '', 'g') );
-
-    } catch( e ) {
-
-        return "";
-
-    }
 
 }
 
@@ -354,7 +284,7 @@ function formatCurrency( amt ) {
  * Make a prefix based on an iterated CSV field.
  */
 function makeIndexedPrefix( prefix, i, j ) {
-    return prefix + '_' + i + '_' + ((('' + j).length == 2 ) ? j : ('0' + j) ) + '_';
+    return prefix + '_' + i + '_' + ((('' + j).length === 2 ) ? j : ('0' + j) ) + '_';
 }
 
 /**
@@ -411,41 +341,6 @@ function individualRelationIsNotSpouse( prefix, row ) {
 
 function individualConstituentHasAccountRelation( prefix, row ) {
     return row[ prefix + 'Org_Name' ] !== '';
-}
-
-
-
-function merge( rowA, rowB ) { return Object.assign( rowA, rowB ); }
-
-function duplicateWith( rowA, rowB ) { return Object.assign( Object.assign( {}, rowA ), rowB ); }
-
-
-function makeSurjectiveMappingWith( mapping, seperator = ', ' ) {
-    return function ( row ) {
-
-        var result = {};
-        var seen = {};
-
-        for ( var header in mapping ) {
-            if ( mapping.hasOwnProperty( header ) ) {
-
-                if ( typeof ( seen[ mapping[ header ] ] ) !== 'undefined' ) {
-
-                    result[ mapping[ header ] ] += seperator + ( typeof row[ header ] !== 'undefined' ) ? row[ header ] : '';
-
-                } else {
-
-                    result[ mapping[ header ] ] = ( typeof row[ header ] !== 'undefined' ) ? row[ header ] : '';
-                    seen[ mapping[ header] ] = true;
-
-                }
-
-
-            }
-        }
-
-        return result;
-    }
 }
 
 /**
@@ -968,68 +863,8 @@ function normalizeSalutation( code ) {
 }
 
 
-/**
- * Deal with Date Formatting for Salesforce Import
- *
- */
-function format_date( date ) {
-
-    if ( typeof date !== 'undefined' && date !== '' ) {
-
-        try {
-
-            var split_date = date.split('/');
-
-            split_date = split_date.map( function( a ) {
-
-                if ( a.length === 4 ) {
-
-                    return a.slice( 2, 4 );
-
-                } else if ( a.length === 2 ) {
-
-                    return a;
-
-                } else if ( a.length === 1 ) {
-
-                    return '0' + a;
-
-                } else {
-
-                    return 'error';
-
-                }
-
-            });
-
-            var two_slashes = split_date.length == 3;
-
-            var units_valid = split_date.reduce( function( a, b ) {
-
-                var pattern = /^[0-9]+$/i;
-
-                var is_number = pattern.test( b );
-
-                return a && is_number && (b.length === 1 || b.length === 2 || b.length === 4 );
-
-            }, true);
-
-            return ( two_slashes && units_valid ) ? [split_date[0], split_date[1], split_date[2]].join('/') : '';
-
-        } catch ( e ) {
-
-            return '';
-
-        }
-
-    } else {
-
-        return '';
-    }
-
-}
-
-
+// suffixes
+function condenseSuffix( s1, s2 ) { return s1 + s2; }
 
 // Parking Lot
 

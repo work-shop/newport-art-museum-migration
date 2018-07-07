@@ -81,8 +81,6 @@ function CSVDataPipeline( sources, target ) {
                 .on('data', function( d ) { self.__rows.push( d ); } )
                 .on('end', function() {
 
-                    self.__progress.tick( 1 );
-
                     self.__readInputFiles( then, secondary_files );
 
                 });
@@ -95,8 +93,6 @@ function CSVDataPipeline( sources, target ) {
                 .pipe( parser() )
                 .on( 'data', function( d ) { file.push( d ); } )
                 .on( 'end', function() {
-
-                    self.__progress.tick( 1 );
 
                     secondary_files.push( file );
 
@@ -158,7 +154,7 @@ function CSVDataPipeline( sources, target ) {
 
         self.__progress.interrupt( '\t' + transformation.desc );
 
-        var transformed = transformation( data, self.__secondaryrows );
+        var transformed = transformation( data, self.__secondaryrows, self.__progress );
 
         self.__progress.interrupt( '\t\t\t\t\t\t\t\t\t' + '[✔]' );
         self.__progress.tick( 1 );
@@ -253,18 +249,18 @@ function CSVDataPipeline( sources, target ) {
 
         console.log( '\t--------------------------------------------------------------------\n' );
 
-        self.__progress = new ProgressBar('\tprogress \t[:bar] :percent :etas', {
-            complete: '=',
-            head: '>',
-            incomplete: ' ',
-            width: 40,
-            total: 2 + self.__transformations.length + self.__validations.length + self.__inputfiles.length + self.__secondaryfiles.length + self.__sortkeys.length,
-            renderThrottle: 10
-        });
-
         self.__rows = [];
 
         self.__readInputFiles( function( ) {
+
+            self.__progress = new ProgressBar('\tprogress \t[:bar] :percent :etas', {
+                complete: '=',
+                head: '>',
+                incomplete: ' ',
+                width: 40,
+                total: 1 + (self.__transformations.length * self.__rows.length) + self.__transformations.length + self.__validations.length + self.__sortkeys.length,
+                renderThrottle: 10
+            });
 
             if ( typeof self.__sortkeys !== 'undefined' && self.__sortkeys.length > 0 ) {
 
@@ -296,10 +292,6 @@ function CSVDataPipeline( sources, target ) {
             self.__rows = self.__transformations.reduce( self.__runTransformation.bind( self ), self.__rows );
 
             self.__rows = self.__rows.map( self.__expandHeader );
-
-            sort( self.__rows, 'Sort_Index__f' );
-
-            self.__progress.tick( 1 );
 
             self.__progress.interrupt( '\n\tValidating Mapping:' );
 

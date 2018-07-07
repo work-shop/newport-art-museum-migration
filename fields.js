@@ -80,6 +80,7 @@ fields.NPSPImport = {
         // A Household will be created for Contact1
         'Contact1 Salutation',
         'Contact1 First Name',
+        'Contact1 Middle Name',
         'Contact1 Last Name', // Required, if any Contact1 info present
         'Contact1 Birthdate',
         'Contact1 Title',
@@ -96,8 +97,10 @@ fields.NPSPImport = {
         'Contact1 Solicit Codes', // Solicit Codes for Contact1
         'Contact1 Constituent Codes',
         'Contact1 Gender',
+        'Contact1 Suffix',
 
         // These will be the address data associated with the Household created for Contact1
+        'Household Phone',
         'Home Street',
         'Home City',
         'Home State/Province',
@@ -107,6 +110,7 @@ fields.NPSPImport = {
         // Contact2 will be connected to Contact1's Household
         'Contact2 Salutation',
         'Contact2 First Name',
+        'Contact2 Middle Name',
         'Contact2 Last Name', // Required, if any Contact2 info present
         'Contact2 Birthdate',
         'Contact2 Title',
@@ -123,6 +127,7 @@ fields.NPSPImport = {
         'Contact2 Solicit Codes',
         'Contact2 Constituent Codes',
         'Contact2 Gender',
+        'Contact2 Suffix',
 
         // Account1 will be related to Contact1
         'Account1 Name', // Required, if any other fields from Account1 are present
@@ -163,6 +168,13 @@ fields.NPSPImport = {
         'Donation Membership Origin', // Not sure what this is for. Skip for now.
         'Donation Membership Start Date', // The start date of the membership if the donation is for a membership.
         'Donation Membership End Date', // The end date of the membership if the donation is for a membership.
+        'Donation Stock Issuer',
+        'Donation Stock Issuer Ticker Symbol',
+        'Donation Stock Liquid Value',
+        'Donation Stock Mean Value',
+        'Donation Stock Unit Value',
+        'Donation Stock Units Issued',
+        'Donation Stock Broker Fee',
         'Donation Campaign Name',
         'Donation RE Campaign', // Tries to match an existing campaign by name. If no match is found, will create a new campaign.
         'Donation RE Appeal',
@@ -171,6 +183,8 @@ fields.NPSPImport = {
         'Donation RE Membership ID',
         'Donation RE Batch Number',
         'Donation Acknowledgement Status',
+        'Payment RE ID',
+        'Payment Description',
         'Payment Method', // The pay-method for this donation
         'Payment Date',
         'Payment Check/Reference Number', // The check or ref number, if there is one.
