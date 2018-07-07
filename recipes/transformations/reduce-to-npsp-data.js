@@ -68,7 +68,11 @@ module.exports = RowMapReduce(
 
             contact1_gifts.forEach( function( donation_row ) {
 
-                result.push( duplicateWith( contact1_row, donation_row ) );
+                if ( donation_row['Donation Type'] !== 'Pledge' || donation_row['Payment Paid'] === 0 ) {
+                    result.push( duplicateWith( contact1_row, donation_row ) );
+                }
+
+
 
             });
 
@@ -88,7 +92,9 @@ module.exports = RowMapReduce(
 
             account1_gifts.forEach( function( donation_row ) {
 
-                result.push( duplicateWith( account1_row, donation_row ) );
+                if ( donation_row['Donation Type'] !== 'Pledge' || donation_row['Payment Paid'] === 0 ) {
+                    result.push( duplicateWith( contact1_row, donation_row ) );
+                }
 
             });
 

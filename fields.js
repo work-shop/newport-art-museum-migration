@@ -168,6 +168,8 @@ fields.NPSPImport = {
         'Donation Membership Origin', // Not sure what this is for. Skip for now.
         'Donation Membership Start Date', // The start date of the membership if the donation is for a membership.
         'Donation Membership End Date', // The end date of the membership if the donation is for a membership.
+        'Donation Installment Schedule',
+        'Donation Installment Plan',
         'Donation Stock Issuer',
         'Donation Stock Issuer Ticker Symbol',
         'Donation Stock Liquid Value',
@@ -183,6 +185,8 @@ fields.NPSPImport = {
         'Donation RE Membership ID',
         'Donation RE Batch Number',
         'Donation Acknowledgement Status',
+        'Payment Paid',
+        'Payment Amount',
         'Payment RE ID',
         'Payment Description',
         'Payment Method', // The pay-method for this donation
@@ -193,6 +197,19 @@ fields.NPSPImport = {
         'FLAG: Duplicate Record'
     ]
 };
+
+fields.NPSPImportPayments = {
+    headers: [
+        'Check/Reference Number',
+        'Description',
+        'Opportunity',
+        'Paid',
+        'Payment Amount',
+        'Payment Method',
+        'Payment Date',
+        'Raiser\'s Edge ID',
+    ]
+}
 
 
 /**

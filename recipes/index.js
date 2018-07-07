@@ -16,9 +16,11 @@ var recipes = {};
 //
 // recipes['Card__c'] = require('./build-cards.js');
 
-recipes['Contact1__a'] = require('./build-primary-contacts.js');
+// recipes['Contact1__a'] = require('./build-primary-contacts.js');
 
-recipes['NPSP_Import_Profile__c'] = require('./build-base-npsp-import.js');
+recipes.NPSP_Import_Profile__c = require('./build-npsp-import.js');
+recipes.NPSP_Import_Payments__c = require('./build-npsp-pledged-payments.js');
+
 
 
 module.exports = recipes;

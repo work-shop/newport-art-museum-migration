@@ -5,7 +5,7 @@ var duplicateWith = require('./objects.js').duplicateWith;
 var makeSurjectiveMappingWith = require('./objects.js').makeSurjectiveMappingWith;
 
 var format_date = require('./format-date.js');
-
+var moment = require('moment');
 var search = require('binary-search-range');
 /**
  * Comparator for binary search.
@@ -85,6 +85,8 @@ function makeCashGift( gift, donation_row ) {
     cash_row['Donation Acknowledgement Status'] = 'Acknowledged';
     cash_row['Payment Date'] = format_date( gift.Gf_Check_date || gift.Gf_Date );
     cash_row['Payment RE ID'] = cash_row['Donation RE ID'];
+    cash_row['Payment Paid'] = 1;
+    cash_row['Payment Amount'] = cash_row['Donation Amount'];
 
     return cash_row;
 
@@ -121,8 +123,53 @@ function makeStockGift( gift, donation_row ) {
     stock_row['Donation Type'] = 'Stock';
     stock_row['Donation Acknowledgement Status'] = 'Acknowledged';
     stock_row['Payment Date'] = format_date( gift.Gf_Sale_of_stock_date || gift.Gf_Date );
+    stock_row['Payment Paid'] = 1;
+    stock_row['Payment Amount'] = stock_row['Donation Amount'];
 
     return stock_row;
+
+}
+
+/**
+ *
+ *
+ */
+function makePledge( gift, pledge_row ) {
+
+    pledge_row['Donation Type'] = 'Pledge';
+    pledge_row['Donation Stage'] = 'Pledged';
+    pledge_row['Donation Record Type Name'] = 'Donation (Pledged)';
+    pledge_row['Donation Installment Plan'] = normalizeInstallmentPlan( gift.Gf_Installmnt_Frqncy );
+    pledge_row['Donation Installment Schedule'] = gift.Gf_Installment_schedule;
+    pledge_row['Donation Acknowledgement Status'] = 'Acknowledged'; // TODO: verify that this is the right acknowledgement stage for the gift.
+    pledge_row['Payment Paid'] = 0;
+
+
+    return pledge_row;
+
+}
+
+function makePledgePayment( payment_row ) {
+
+    var mapping = {};
+
+    mapping.Gf_Date = 'Payment Date';
+    mapping.Gf_Amount = 'Payment Amount';
+    mapping.Gf_Campaign = 'Payment RE Campaign';
+    mapping.Gf_Appeal = 'Payment RE Appeal';
+    mapping.Gf_Fund = 'Payment RE Fund';
+    mapping.Gf_System_ID = 'Payment RE ID';
+    mapping.Gf_Pay_method = 'Payment Method';
+    mapping.Gf_Check_number = 'Payment Check/Reference Number';
+
+    var payment = makeSurjectiveMappingWith( mapping )( payment_row );
+
+    payment['Payment Date'] = format_date( payment['Payment Date'] );
+    payment['Payment Paid'] = 1;
+    payment['Payment Amount'] = format_currency( payment['Payment Amount'] );
+    payment['Payment Description'] = condense_gift_description( payment_row );
+
+    return payment;
 
 }
 
@@ -131,10 +178,107 @@ function makeStockGift( gift, donation_row ) {
  * This creates a pledged gift. Pledged gifts behave somewhat peculiarly.
  *
  */
-function makePledgedGift() {
+function getPledgePayments( gift, gift_rows, pledge, constituent_type ) {
+
+    var payments = gift_rows.filter( function( g ) { return isPledgePayment( g ); } )
+                            .map( function( p ) { return [p, makePledgePayment( p )]; });
+
+    if ( pledge['Donation Installment Plan'] === 'Single Installment' ) {
+
+        var pledged_amount = parseFloat( pledge['Donation Amount'] );
+
+        // We're looking for a single pledge payment.
+        var installments = findMatchingInstallments( pledge, payments, function( a, b ) { return parseFloat( a ) === parseFloat( b ); });
+
+        if ( installments.length === 0 ) {
+
+            var second_pass = findMatchingInstallments( pledge, payments, function( a, b ) { return pledged_amount > parseFloat( b ); });
+            var pass_sum = second_pass.reduce( function( a,b ) { return a + parseFloat( b[1]['Payment Amount'] ); }, 0);
+
+            if ( second_pass.length === 0 ) {
+
+                //console.log( 'no payment for pledge' );
+                return [];
+
+            } else if ( pass_sum <= pledged_amount ) {
+
+                //console.log( 'exact payment or underpayment for single pledge: ' + pass_sum );
+                return second_pass.map( function( payment ) { payment[0].FLAGGED_SEEN = true; return payment[1]; } );
+
+            } else {
+
+                second_pass.sort( function( a, b ) {
+
+                    var moment_a = moment( a );
+                    var moment_b = moment( b );
+
+                    if ( moment_a.isBefore( b ) ) {
+                        return -1;
+                    } else if ( moment_b.isBefore( a ) ) {
+                        return 1;
+                    } else {
+                        return 0;
+                    }
+
+                });
+
+                var result = [];
+                var sum = 0;
+
+                for ( var i = 0; i < second_pass.length && sum < pledged_amount; i+=1 ) {
+
+                    sum += parseFloat( second_pass[ i ][ 1 ]['Payment Amount'] );
+                    second_pass[ i ][ 0 ].FLAGGED_SEEN = true;
+                    result.push( second_pass[ i ][ 1 ] )
+
+                }
+
+                return result;
+
+            }
+
+        } else {
+
+            var payment = installments[0];
+
+            payment[0].FLAGGED_SEEN = true;
+            return [ payment[1] ];
+
+        }
+
+
+    } else {
+
+        //console.log('multiple installment pledge');
+
+        return [];
+
+    }
+
+
 
 }
 
+function findMatchingInstallments( pledge, payments, compare ) {
+
+
+    return payments.filter( function( payment ) {
+
+        return pledge['Donation RE Campaign'] === payment[1]['Payment RE Campaign'] &&
+               pledge['Donation RE Fund'] === payment[1]['Payment RE Fund'] &&
+               pledge['Donation RE Appeal'] === payment[1]['Payment RE Appeal'] &&
+               compare( pledge['Donation Amount'], payment[1]['Payment Amount'] ) &&
+               moment( pledge['Donation Date'] ).isSameOrBefore( moment( payment[1]['Payment Date']) )
+
+    });
+
+}
+
+
+function print_payment_details( pledge, payment ) {
+    console.log( pledge['Donation RE Campaign'],pledge['Donation RE Fund'],pledge['Donation RE Appeal'],pledge['Donation Amount'],pledge['Donation Date'] );
+    console.log( payment['Payment RE Campaign'],payment['Payment RE Fund'],payment['Payment RE Appeal'],payment['Payment Amount'],payment['Payment Date'] );
+}
 
 
 /**
@@ -163,6 +307,21 @@ function makeDonationSetForConstituent( constituent_type, gift_rows, membership_
             var stock_gift = makeStockGift( gift, cash_row );
 
             result_rows.push( stock_gift );
+
+        } else if ( isPledgedGift( gift ) && !isMembershipGift( gift ) ) {
+
+            var base_pledge_row = makeBaseGift( gift, constituent_type );
+            var pledge_gift = makePledge( gift, base_pledge_row );
+            var payments = getPledgePayments( gift, gift_rows, pledge_gift, constituent_type );
+
+            payments.forEach( function( payment ) {
+
+                result_rows.push( duplicateWith( pledge_gift, payment ) );
+
+            });
+
+            pledge_gift['Payment Amount'] = '0';
+            result_rows.push( pledge_gift );
 
         }
 
@@ -219,8 +378,7 @@ function isPledgePayment( gift ) {
 
     var type = ( typeof gift.Gf_Type !== 'undefined') ? gift.Gf_Type.toLowerCase() : ''
 
-    return type.indexOf( )
-
+    return type.indexOf( 'pay-' ) !== -1 && type.indexOf( 'mg pay-' ) === -1 && (typeof gift.FLAGGED_SEEN === 'undefined');
 
 }
 
@@ -276,6 +434,10 @@ function condense_gift_description( gift ) {
 
     var notes = [];
 
+    if ( typeof gift.Gf_Reference !== 'undefined' && gift.Gf_Reference !== '' ) {
+        notes.push( gift.Gf_Reference );
+    }
+
     for ( var i = 1; i < gift_note_count; i += 1 ){
 
         var date = gift['Gf_Note_1_' + ((('' + i).length === 1 ) ? '0' + i : i ) + 'Date' ];
@@ -293,6 +455,35 @@ function condense_gift_description( gift ) {
 
     return notes.join('; ');
 
+}
+
+
+
+function normalizeInstallmentPlan( plan ) {
+    switch ( plan.trim().toLowerCase() ) {
+
+        case 'irregular':
+            return 'Irregular Installments';
+
+        case 'semi-annually':
+            return 'Semi-Annual Installments';
+
+        case 'annually':
+            return 'Annual Installments';
+
+        case 'quarterly':
+            return 'Quarterly Installments';
+
+        case 'monthly':
+            return 'Monthly Installments';
+
+        case 'single installment':
+            return 'Single Installment';
+
+        default:
+            return '';
+
+    }
 }
 
 
