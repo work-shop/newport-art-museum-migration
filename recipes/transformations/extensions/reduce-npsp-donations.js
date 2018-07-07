@@ -28,6 +28,12 @@ module.exports = function( type, row, gifts, memberships ) {
     //
     // if ( !valid ) { console.log( 'membership gift without membership association.' ); }
 
+    // Sort the gifts in ascending order of value, from lowest to highest.
+    // This will help make sure that smalled pledges encounter smaller payments first.
+    relevant_gifts_indices.sort( function( i1, i2 ) {
+        return  parseFloat( gifts[ i2 ].Gf_Amount ) - parseFloat( gifts[ i1 ].Gf_Amount );
+    })
+
     var donation_rows = makeDonationSetForConstituent( 'Contact1',
         relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ),
         makeIDMap( 'Mem_System_ID', relevant_membership_indices.map( function( i ) { return memberships[ i ]; } ) )
@@ -188,7 +194,7 @@ function getPledgePayments( gift, gift_rows, pledge, constituent_type ) {
         var pledged_amount = parseFloat( pledge['Donation Amount'] );
 
         // We're looking for a single pledge payment.
-        var installments = findMatchingInstallments( pledge, payments, function( a, b ) { return parseFloat( a ) === parseFloat( b ); });
+        var installments = findMatchingInstallments( pledge, payments, function( a, b ) { return pledged_amount === parseFloat( b ); });
 
         if ( installments.length === 0 ) {
 
@@ -207,33 +213,39 @@ function getPledgePayments( gift, gift_rows, pledge, constituent_type ) {
 
             } else {
 
-                second_pass.sort( function( a, b ) {
+                var result = [];
+                var sum = 0;
 
-                    var moment_a = moment( a );
-                    var moment_b = moment( b );
+                /**
+                 * Algorithm for putting the right number of payments in.
+                 * Sort payments in descending order of amount.
+                 * Put the first payment in. if the amount is too high, remove the last payment
+                 */
 
-                    if ( moment_a.isBefore( b ) ) {
-                        return -1;
-                    } else if ( moment_b.isBefore( a ) ) {
-                        return 1;
-                    } else {
-                        return 0;
+                /** sort in descending order */
+                second_pass.sort( function( p1, p2 ) {
+                    return parseFloat( p2[1]['Payment Amount'] ) - parseFloat( p1[1]['Payment Amount'] );
+                });
+
+                second_pass.forEach( function( payment ) {
+
+                    if ( sum < pledged_amount ) {
+
+                        sum += parseFloat( payment[1]['Payment Amount'] );
+                        result.push( payment );
+
+                    } else if ( sum > pledged_amount ) {
+
+                        var overshoot = result.pop();
+                        sum -= parseFloat( overshoot[1]['Payment Amount'] );
+                        sum += parseFloat( payment[1]['Payment Amount'] );
+                        result.push( payment );
+
                     }
 
                 });
 
-                var result = [];
-                var sum = 0;
-
-                for ( var i = 0; i < second_pass.length && sum < pledged_amount; i+=1 ) {
-
-                    sum += parseFloat( second_pass[ i ][ 1 ]['Payment Amount'] );
-                    second_pass[ i ][ 0 ].FLAGGED_SEEN = true;
-                    result.push( second_pass[ i ][ 1 ] )
-
-                }
-
-                return result;
+                return result.map( function( payment ){ payment[0].FLAGGED_SEEN = true; return payment[1]; });
 
             }
 
@@ -321,6 +333,7 @@ function makeDonationSetForConstituent( constituent_type, gift_rows, membership_
             });
 
             pledge_gift['Payment Amount'] = '0';
+            pledge_gift['Donation Do Not Create Payment'] = 1;
             result_rows.push( pledge_gift );
 
         }
