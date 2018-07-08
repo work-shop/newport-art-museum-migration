@@ -335,11 +335,12 @@ function getDoublyLinkedNongiftMemberships( constituent_type, gift, constituent,
 
             // count_quantity( 'Case: Non-gift, Doubly Linked: Matching gifts are equal' );
 
-            return makeMembershipGift( constituent_type, gift, m1, 100, 'This membership gift was paired exactly with a matching Raiser\'s Edge membership record.', gift_rows );
+            return makeMembershipGift( constituent_type, gift, m1, 100, 'This membership gift was paired exactly with a matching Raiser\'s Edge membership records.', gift_rows );
 
         } else {
 
             // count_quantity( 'Case: Non-gift, Doubly Linked: Matching gifts are not equal' );
+            return makeMembershipGift( constituent_type, gift, m2, 65, 'This membership gift was paired with non-matching membership Raiser\'s Edge records. We preferred the membership record linked directly to the gift record.', gift_rows );
 
         }
 
@@ -594,7 +595,7 @@ function makeMembershipGift( constituent_type, raw_gift, membership, certainty, 
         var membership_gift = makePledge( raw_gift, base_row );
         var payments = getPledgePayments( raw_gift, gift_rows, membership_gift, constituent_type );
 
-        membership_gift['Donation Record Type Name'] = 'Membership';
+        membership_gift['Donation Record Type Name'] = 'Membership (Pledged)';
         membership_gift['Donation Membership Origin'] = '';
         membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
         membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
@@ -636,7 +637,7 @@ function makeMembershipGift( constituent_type, raw_gift, membership, certainty, 
 
     } else {
 
-        console.log( 'Found Nonstandard Gift Type: ' + raw_gift.Gf_Type );
+        //console.log( 'Found Nonstandard Gift Type: ' + raw_gift.Gf_Type );
         return [];
 
     }
