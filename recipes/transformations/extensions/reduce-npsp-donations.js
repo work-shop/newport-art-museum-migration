@@ -106,6 +106,7 @@ function makeDonationSetForConstituent( constituent_type, gift_rows, membership_
 }
 
 
+var count = 0;
 
 function getMembershipGifts( gift, constituent, membership_map ) {
 
@@ -115,8 +116,9 @@ function getMembershipGifts( gift, constituent, membership_map ) {
      *
      *
      */
-    var linked_gift_memberships = getLinkedMembershipsForGift( gift, membership_map );
+    var linked_gift_memberships = removeDuplicateMemberships( getLinkedMembershipsForGift( gift, membership_map ) );
     var linked_constituent_memberships = getLinkedMembershipsForConstituent( constituent );
+    var base_gift_row = makeBaseGift( gift );
 
     if (
         membershipIsAGift( gift )
@@ -134,7 +136,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
                 linked_constituent_memberships.length > 0
             ) {
 
-                //console.log('Case: Gift – has Gift Membership and Constituent Membership');
+                // count_quantity('Case: Gift – has Gift Membership and Constituent Membership');
 
                 // membership related gifting constituent has linked memberships
                 // NOTE: certainty: high
@@ -156,7 +158,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
 
             } else {
 
-                // console.log('Case: Gift – has Gift Membership');
+                //count_quantity('Case: Gift – has Gift Membership');
 
                 // membership related gifting constituent does not have constituent memberships. This is a gift to the linked constituents.
                 // NOTE: certainty: high
@@ -173,7 +175,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
                 linked_constituent_memberships.length > 0
             ) {
 
-                //console.log('Case: Gift – has Constituent Membership');
+                // count_quantity('Case: Gift – has Constituent Membership');
 
                 // This gift has no attached memberships, but the constituent has a membership associated with it.
                 // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, or was not
@@ -189,7 +191,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
 
             } else {
 
-                //console.log('Case: Gift – has nothing');
+                // count_quantity('Case: Gift – has nothing');
 
                 // This gift has no attached membership, and the constituent has no associated memberships either.
                 // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, and was not properly associated with a membership
@@ -216,9 +218,9 @@ function getMembershipGifts( gift, constituent, membership_map ) {
                 linked_constituent_memberships.length > 0
             ) {
 
-                return getDoublyLinkedNongiftMemberships( gift, constituent, linked_constituent_memberships, linked_gift_memberships );
+                // return getDoublyLinkedNongiftMemberships( base_gift_row, constituent, linked_constituent_memberships, linked_gift_memberships );
 
-                // console.log('Case: Non-Gift – has Gift Membership and Constituent Membership');
+                // count_quantity('Case: Non-Gift – has Gift Membership and Constituent Membership');
 
                 // membership related gifting constituent has linked memberships
 
@@ -239,7 +241,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
 
             } else {
 
-                //console.log('Case: Non-Gift – has Gift Membership');
+                // count_quantity('Case: Non-Gift – has Gift Membership');
 
                 // This is either a lapsed membership which was deleted from the constituent, or a mislabelled gift.
 
@@ -267,7 +269,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
                 linked_constituent_memberships.length > 0
             ) {
 
-                //console.log('Case: Non-Gift – has Constituent Membership');
+                // count_quantity('Case: Non-Gift – has Constituent Membership');
 
                 // This gift has no attached memberships, but the constituent has a membership associated with it.
                 // NOTE: Slightly Ambiguous, but probably safe.
@@ -278,7 +280,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
 
             } else {
 
-                // console.log('Case: Non-Gift – has nothing');
+                // count_quantity( 'Case: Non-Gift – has nothing' );
 
                 // This gift has no attached membership, and the constituent has no associated memberships either.
                 // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, and was not properly associated with a membership
@@ -301,18 +303,128 @@ function getMembershipGifts( gift, constituent, membership_map ) {
 
 
 
+function count_quantity( msg ) {
+    count += 1;
+    console.log( msg + ' [' + count + ']' );
+}
+
 function getDoublyLinkedNongiftMemberships( gift, constituent, constituent_linked_memberships, gift_linked_memberships ) {
 
-    console.log('');
-    console.log('');
-    console.log( constituent.CnBio_Name );
-    console.log( gift.Gf_Date );
-    console.log('memberships on constituent: ');
-    console.log( constituent_linked_memberships );
-    console.log('memberships on gift: ');
-    console.log( gift_linked_memberships );
-    console.log('');
-    console.log('');
+
+    var viable_c_linked_memberships = getViableMemberships( gift, constituent_linked_memberships );
+    var viable_g_linked_memberships = getViableMemberships( gift, gift_linked_memberships );
+
+    if ( viable_c_linked_memberships.length === 1 && viable_g_linked_memberships.length === 1 ) {
+
+        // count_quantity( 'Case: Non-gift, Doubly Linked: Single matching gift pair.' );
+
+    } else if ( viable_c_linked_memberships.length > 1 && viable_g_linked_memberships.length === 1 ) {
+
+        // count_quantity( 'Case: Non-gift, Doubly Linked: Constituent has multiple memberships, but gift is linked to 1' );
+
+    } else if ( viable_c_linked_memberships.length === 1 && viable_g_linked_memberships.length > 1 ) {
+
+        // count_quantity( 'Case: Non-gift, Doubly Linked: Constituent has single memberships, but gift is linked to several' );
+
+    } else {
+
+        //count_quantity( 'Case: Non-gift, Doubly Linked: Constituent has multiple memberships, and gift is linked to multiple memberships' );
+
+    }
+
+
+    //
+    // for (var i = 0; i < viable_c_linked_memberships.length; i++ ) {
+    //
+    //     for ( var j = 0; j < viable_g_linked_memberships.length; j++ ) {
+    //
+    //         if ( equalMemberships( viable_c_linked_memberships[i], viable_g_linked_memberships[ j ] ) ) {
+    //
+    //             console.log( 'Case: Non-gift, Doubly Linked: Matching Gifts' );
+    //
+    //         }
+    //
+    //     }
+    //
+    // }
+    //
+    // console.log('');
+
+
+    // if ( constituent.CnBio_Name === ) {
+    //
+    // } else {
+    //
+    // }
+
+    // console.log('');
+    // console.log('');
+    // console.log( constituent.CnBio_Name );
+    // console.log( gift['Donation Date'] );
+    // console.log('memberships on constituent: ');
+    // console.log( viable_c_linked_memberships );
+    // console.log('memberships on gift: ');
+    // console.log( viable_g_linked_memberships );
+    // console.log('');
+    // console.log('');
+
+}
+
+
+function getViableMemberships( gift, memberships ) {
+    return memberships.filter( function( m ) { return giftViableForMembership( gift, m ); });
+}
+
+function giftViableForMembership( gift, membership ) {
+
+    var gift_date = moment( gift['Donation Date'] )
+    var membership_start_date = moment( membership['Membership Date Joined'] );
+    var membership_renewed_date = moment( membership['Membership Last Renewed'] );
+
+    if ( membership_start_date.isSame( membership_renewed_date ) ) {
+
+        return gift_date.isSameOrAfter( membership_start_date.subtract(1, 'months') );
+
+    } else {
+
+        return gift_date.isSameOrBefore( membership_renewed_date ) && gift_date.isSameOrAfter( membership_start_date.subtract(1, 'months') );
+
+    }
+
+
+}
+
+function equalMemberships( m1, m2 ) {
+    return m1['Membership Category'] === m2['Membership Category'] &&
+           m1['Membership Program'] === m2['Membership Program'] &&
+           m1['Membership Date Joined'] === m2['Membership Date Joined'] &&
+           m1['Membership Date Last Dropped'] === m2['Membership Date Last Dropped'] &&
+           m1['Membership Date Last Renewed'] === m2['Membership Date Last Renewed'] &&
+           m1['Membership Standing'] === m2['Membership Standing'] &&
+           m1['Membership Constituent Name'] === m2['Membership Constituent Name'];
+
+}
+
+
+
+function removeDuplicateMemberships( memberships ) {
+
+    var result = [];
+
+    for ( var i = 0; i < memberships.length; i++ ) {
+
+        if (
+            result.map( function( m ) { return !equalMemberships( m, memberships[i] ); })
+                  .reduce( function( a,b ) { return a && b; }, true )
+        ) {
+
+            result.push( memberships[i] );
+
+        }
+
+    }
+
+    return result;
 
 }
 
