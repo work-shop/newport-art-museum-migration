@@ -14,7 +14,7 @@ module.exports = RowMapReduce(
         var constituent = {};
         constituent['Contact1 RE ID'] = row.CnBio_System_ID;
 
-        var pledges = reformatGiftsToDonationsAndPayments( 'Contact1', constituent, sorted_gifts, [''] ).filter( function( p ) { return p['Donation Type'] === 'Pledge' && p['Payment Paid'] === 1; } );
+        var pledges = reformatGiftsToDonationsAndPayments( 'Contact1', constituent, sorted_gifts, [''], row ).filter( function( p ) { return p['Donation Type'] === 'Pledge' && p['Payment Paid'] === 1; } );
 
         pledges.forEach( function( pledge ) {
 

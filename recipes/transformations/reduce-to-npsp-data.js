@@ -30,7 +30,7 @@ module.exports = RowMapReduce(
         var result = [];
 
         var gifts = secondaries[0];
-        var memberships = secondaries[1];
+        var memberships_by_constituent_id = secondaries[1];
 
 
         if ( isIndividualConstituent( row ) ) {
@@ -63,7 +63,8 @@ module.exports = RowMapReduce(
                 'Contact1',
                 contact1_row,
                 gifts,
-                memberships
+                memberships_by_constituent_id,
+                row
             );
 
             contact1_gifts.forEach( function( donation_row ) {
@@ -87,7 +88,8 @@ module.exports = RowMapReduce(
                 'Account1',
                 account1_row,
                 gifts,
-                memberships
+                memberships_by_constituent_id,
+                row
             );
 
             account1_gifts.forEach( function( donation_row ) {
