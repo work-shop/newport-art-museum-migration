@@ -43,6 +43,8 @@ module.exports = RowMapReduce(
 
             // Create a Contact1 representing this Head of Household.
             var contact1_row = makeContact1( row );
+            constituent_row_prototypes[ contact1_row['Contact1 RE ID'] ] = contact1_row;
+
             var contact1_primary_affiliations = duplicateWith( contact1_row, {});
 
             // Create a Spouse for the Constituent, if Relevant.
@@ -73,20 +75,19 @@ module.exports = RowMapReduce(
                 row
             );
 
-            contact1_gifts.forEach( function( donation_row ) {
+            contact1_gifts.forEach( postDonationRows( contact1_row, result ) );
 
-                if ( donation_row['Donation Type'] !== 'Pledge' || donation_row['Payment Paid'] === 0 ) {
-                    result.push( duplicateWith( contact1_row, donation_row ) );
-                }
-
-
-
-            });
+            if ( typeof membership_row_prototypes[ contact1_row['Contact1 RE ID'] ] !== 'undefined') {
+                membership_row_prototypes[ contact1_row['Contact1 RE ID'] ].forEach( function(donation_row) {
+                    contact1_gifts.push( duplicateWith(contact1_row, donation_row) );
+                });
+            }
 
         } else if ( isOrganizationalConstituent( row ) ) {
 
 
             var account1_row = makeAccount1( row );
+            constituent_row_prototypes[ account1_row['Account1 RE ID'] ] = account1_row;
 
             result.push( account1_row );
 
@@ -98,13 +99,13 @@ module.exports = RowMapReduce(
                 row
             );
 
-            account1_gifts.forEach( function( donation_row ) {
+            account1_gifts.forEach( postDonationRows( account1_row, result ) );
 
-                if ( donation_row['Donation Type'] !== 'Pledge' || donation_row['Payment Paid'] === 0 ) {
-                    result.push( duplicateWith( contact1_row, donation_row ) );
-                }
-
-            });
+            if ( typeof membership_row_prototypes[ account1_row['Contact1 RE ID'] ] !== 'undefined') {
+                membership_row_prototypes[ account1_row['Contact1 RE ID'] ].forEach( function(donation_row) {
+                    contact1_gifts.push( duplicateWith(account1_row, donation_row) );
+                });
+            }
 
         }
 
@@ -113,6 +114,59 @@ module.exports = RowMapReduce(
     }
 );
 
+
+function postDonationRows( base_row, result ) {
+    return function( donation_row ) {
+
+        if ( donation_row['Donation Record Type Name'] === 'Membership' || (donation_row['Donation Record Type Name'] === 'Membership (Pledged)' && donation_row['Payment Paid'] === 0) ) {
+
+            var row_prototype = constituent_row_prototypes[ donation_row['FLAG: Donation Membership Holder ID'] ];
+
+            if ( typeof row_prototype !== 'undefined' ) {
+
+                /**
+                 * We've seen this constituent, so make the row immediately.
+                 */
+                if ( typeof row_prototype['Contact1 Last Name'] !== 'undefined' ) {
+
+                    donation_row['Donation Donor'] = 'Contact1';
+                    result.push( duplicateWith( row_prototype, donation_row ) );
+
+                } else {
+
+                    donation_row['Donation Donor'] = 'Account1';
+                    result.push( duplicateWith( row_prototype, donation_row ) );
+
+                }
+
+            } else {
+
+                /**
+                 * We haven't seen this constituent yet. Stash this donation prototype for later, and
+                 * grab it when we see that constituent. If we never see that constituent, then this is
+                 * an orphaned membership donation.
+                 */
+                if ( typeof membership_row_prototypes[ donation_row['FLAG: Donation Membership Holder ID'] ] === 'undefined' ) {
+
+                    membership_row_prototypes[ donation_row['FLAG: Donation Membership Holder ID'] ] = [ donation_row ];
+
+                } else {
+
+                    membership_row_prototypes[ donation_row['FLAG: Donation Membership Holder ID'] ].push( donation_row );
+
+                }
+
+            }
+
+        } else if ( donation_row['Donation Type'] !== 'Pledge' || donation_row['Payment Paid'] === 0 ) {
+
+            result.push( duplicateWith( base_row, donation_row ) );
+
+        }
+
+    }
+
+}
 
 
 /**

@@ -93,9 +93,22 @@ function makeDonationSetForConstituent( constituent_type, gift_rows, membership_
             pledge_gift['Donation Do Not Create Payment'] = 1;
             result_rows.push( pledge_gift );
 
-        } else if ( isMembershipGift( gift ) ) {
+        } else if ( isOtherGift( gift ) && !isMembershipGift( gift ) ) {
 
-            var membership_rows = getMembershipGifts( gift, raw_constituent, membership_map );
+            var base_row = makeBaseGift( gift, constituent_type );
+            var other_row = makeOtherGift( gift, base_row )
+
+            result_rows.push( other_row );
+
+        } else if ( isMembershipGift( gift )  ) {
+
+            var membership_rows = getMembershipGifts( gift, raw_constituent, membership_map, constituent_type, gift_rows );
+
+            membership_rows.forEach( function( membership_row ) {
+
+                result_rows.push( membership_row );
+
+            });
 
         }
 
@@ -108,7 +121,7 @@ function makeDonationSetForConstituent( constituent_type, gift_rows, membership_
 
 var count = 0;
 
-function getMembershipGifts( gift, constituent, membership_map ) {
+function getMembershipGifts( gift, constituent, membership_map, constituent_type, gift_rows ) {
 
     /**
      * Assumptions for how memberships are stored in RE:
@@ -118,7 +131,6 @@ function getMembershipGifts( gift, constituent, membership_map ) {
      */
     var linked_gift_memberships = removeDuplicateMemberships( getLinkedMembershipsForGift( gift, membership_map ) );
     var linked_constituent_memberships = getLinkedMembershipsForConstituent( constituent );
-    var base_gift_row = makeBaseGift( gift );
 
     if (
         membershipIsAGift( gift )
@@ -218,7 +230,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
                 linked_constituent_memberships.length > 0
             ) {
 
-                // return getDoublyLinkedNongiftMemberships( base_gift_row, constituent, linked_constituent_memberships, linked_gift_memberships );
+
 
                 // count_quantity('Case: Non-Gift – has Gift Membership and Constituent Membership');
 
@@ -238,6 +250,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
                 // TODO: mark the donation as 60% certainty
                 // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
 
+                return getDoublyLinkedNongiftMemberships( constituent_type, gift, constituent, linked_constituent_memberships, linked_gift_memberships, gift_rows );
 
             } else {
 
@@ -297,7 +310,7 @@ function getMembershipGifts( gift, constituent, membership_map ) {
 
     }
 
-
+    return [];
 
 }
 
@@ -308,7 +321,7 @@ function count_quantity( msg ) {
     console.log( msg + ' [' + count + ']' );
 }
 
-function getDoublyLinkedNongiftMemberships( gift, constituent, constituent_linked_memberships, gift_linked_memberships ) {
+function getDoublyLinkedNongiftMemberships( constituent_type, gift, constituent, constituent_linked_memberships, gift_linked_memberships, gift_rows ) {
 
 
     var viable_c_linked_memberships = getViableMemberships( gift, constituent_linked_memberships );
@@ -316,7 +329,20 @@ function getDoublyLinkedNongiftMemberships( gift, constituent, constituent_linke
 
     if ( viable_c_linked_memberships.length === 1 && viable_g_linked_memberships.length === 1 ) {
 
-        // count_quantity( 'Case: Non-gift, Doubly Linked: Single matching gift pair.' );
+        var m1 = viable_c_linked_memberships[0], m2 = viable_g_linked_memberships[0];
+
+        if ( equalMemberships( m1, m2 ) ) {
+
+            // count_quantity( 'Case: Non-gift, Doubly Linked: Matching gifts are equal' );
+
+            return makeMembershipGift( constituent_type, gift, m1, 100, 'This membership gift was paired exactly with a matching Raiser\'s Edge membership record.', gift_rows );
+
+        } else {
+
+            // count_quantity( 'Case: Non-gift, Doubly Linked: Matching gifts are not equal' );
+
+        }
+
 
     } else if ( viable_c_linked_memberships.length > 1 && viable_g_linked_memberships.length === 1 ) {
 
@@ -330,43 +356,10 @@ function getDoublyLinkedNongiftMemberships( gift, constituent, constituent_linke
 
         //count_quantity( 'Case: Non-gift, Doubly Linked: Constituent has multiple memberships, and gift is linked to multiple memberships' );
 
+
     }
 
-
-    //
-    // for (var i = 0; i < viable_c_linked_memberships.length; i++ ) {
-    //
-    //     for ( var j = 0; j < viable_g_linked_memberships.length; j++ ) {
-    //
-    //         if ( equalMemberships( viable_c_linked_memberships[i], viable_g_linked_memberships[ j ] ) ) {
-    //
-    //             console.log( 'Case: Non-gift, Doubly Linked: Matching Gifts' );
-    //
-    //         }
-    //
-    //     }
-    //
-    // }
-    //
-    // console.log('');
-
-
-    // if ( constituent.CnBio_Name === ) {
-    //
-    // } else {
-    //
-    // }
-
-    // console.log('');
-    // console.log('');
-    // console.log( constituent.CnBio_Name );
-    // console.log( gift['Donation Date'] );
-    // console.log('memberships on constituent: ');
-    // console.log( viable_c_linked_memberships );
-    // console.log('memberships on gift: ');
-    // console.log( viable_g_linked_memberships );
-    // console.log('');
-    // console.log('');
+    return [];
 
 }
 
@@ -374,6 +367,8 @@ function getDoublyLinkedNongiftMemberships( gift, constituent, constituent_linke
 function getViableMemberships( gift, memberships ) {
     return memberships.filter( function( m ) { return giftViableForMembership( gift, m ); });
 }
+
+
 
 function giftViableForMembership( gift, membership ) {
 
@@ -553,6 +548,104 @@ function emptyRecord( record ) {
 }
 
 
+function makeMembershipGift( constituent_type, raw_gift, membership, certainty, description, gift_rows ) {
+
+    var base_row = makeBaseGift( raw_gift, constituent_type );
+
+    if ( isCashGift( raw_gift ) ) {
+
+        var membership_gift = makeCashGift( raw_gift, base_row );
+
+        membership_gift['Donation Record Type Name'] = 'Membership';
+        membership_gift['Donation Membership Origin'] = '';
+        membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
+        membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
+        membership_gift['Donation Membership Level'] = membership['Membership Category'];
+        membership_gift['Donation Certainty'] = certainty;
+        membership_gift['Donation Migration Description'] = description;
+        membership_gift['Donation Migration Donation Type'] = 'Membership-related Donation';
+
+        membership_gift['FLAG: Donation Membership Holder ID'] = membership['Membership Constituent ID'];
+
+        return [ membership_gift ];
+
+    } else if ( isStockGift( raw_gift ) ) {
+
+        var cash_row = makeCashGift( raw_gift, base_row )
+        var membership_gift = makeStockGift( raw_gift, cash_row );
+
+        membership_gift['Donation Record Type Name'] = 'Membership';
+        membership_gift['Donation Membership Origin'] = '';
+        membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
+        membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
+        membership_gift['Donation Membership Level'] = membership['Membership Category'];
+        membership_gift['Donation Certainty'] = certainty;
+        membership_gift['Donation Migration Description'] = description;
+        membership_gift['Donation Migration Donation Type'] = 'Membership-related Donation';
+
+        membership_gift['FLAG: Donation Membership Holder ID'] = membership['Membership Constituent ID'];
+
+        return [ membership_gift ];
+
+    } else if ( isPledgedGift( raw_gift ) ) {
+
+        var result_rows;
+
+        var membership_gift = makePledge( raw_gift, base_row );
+        var payments = getPledgePayments( raw_gift, gift_rows, membership_gift, constituent_type );
+
+        membership_gift['Donation Record Type Name'] = 'Membership';
+        membership_gift['Donation Membership Origin'] = '';
+        membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
+        membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
+        membership_gift['Donation Membership Level'] = membership['Membership Category'];
+        membership_gift['Donation Certainty'] = certainty;
+        membership_gift['Donation Migration Description'] = description;
+        membership_gift['Donation Migration Donation Type'] = 'Membership-related Donation';
+
+        membership_gift['FLAG: Donation Membership Holder ID'] = membership['Membership Constituent ID'];
+
+        payments.forEach( function( payment ) {
+
+            result_rows.push( duplicateWith( membership_gift, payment ) );
+
+        });
+
+        membership_gift['Payment Amount'] = '0';
+        membership_gift['Donation Do Not Create Payment'] = 1;
+        result_rows.push( membership_gift );
+
+        return result_rows;
+
+    } else if ( isOtherGift( raw_gift ) ) {
+
+        var membership_gift = makeOtherGift( raw_gift, base_row );
+
+        membership_gift['Donation Record Type Name'] = 'Membership';
+        membership_gift['Donation Membership Origin'] = '';
+        membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
+        membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
+        membership_gift['Donation Membership Level'] = membership['Membership Category'];
+        membership_gift['Donation Certainty'] = certainty;
+        membership_gift['Donation Migration Description'] = description;
+        membership_gift['Donation Migration Donation Type'] = 'Membership-related Donation';
+
+        membership_gift['FLAG: Donation Membership Holder ID'] = membership['Membership Constituent ID'];
+
+        return [ membership_gift ];
+
+    } else {
+
+        console.log( 'Found Nonstandard Gift Type: ' + raw_gift.Gf_Type );
+        return [];
+
+    }
+
+
+
+}
+
+
 
 
 /**
@@ -610,6 +703,15 @@ function makeCashGift( gift, donation_row ) {
     cash_row['Payment Amount'] = cash_row['Donation Amount'];
 
     return cash_row;
+
+}
+
+/**
+ * Construct an 'Other' type gift – in this case, we're treating 'Other' gifts as 'Cash' gifts.
+ */
+function makeOtherGift( gift, donation_row  ) {
+
+    return makeCashGift( gift, donation_row );
 
 }
 
@@ -876,6 +978,18 @@ function isPledgedGift( gift ) {
     var type = ( typeof gift.Gf_Type !== 'undefined') ? gift.Gf_Type.toLowerCase() : ''
 
     return (type === 'pledge');
+
+}
+
+
+function isOtherGift( gift ) {
+
+    // var campaign = ( typeof gift.Gf_Campaign !== 'undefined') ? gift.Gf_Campaign.toLowerCase() : '';
+    // var fund = ( typeof gift.Gf_Fund !== 'undefined') ? gift.Gf_Fund.toLowerCase() : '';
+    // var frequency = ( typeof gift.Gf_Installmnt_Frqncy !== 'undefined') ? gift.Gf_Installmnt_Frqncy.toLowerCase() : '';
+    var type = ( typeof gift.Gf_Type !== 'undefined') ? gift.Gf_Type.toLowerCase() : ''
+
+    return (type === 'other');
 
 }
 

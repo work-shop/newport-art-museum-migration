@@ -188,6 +188,7 @@ fields.NPSPImport = {
         'Donation Do Not Create Payment',
         'Donation Certainty',
         'Donation Migration Description',
+        'Donation Migration Donation Type',
         'Payment Paid',
         'Payment Certainty',
         'Payment Migration Description',
