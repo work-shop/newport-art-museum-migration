@@ -14,15 +14,18 @@ function compare( a, b ) { return ( a < b ) ? -1 : (( a > b ) ? 1 : 0); }
 
 const gift_note_count = 3;
 
-module.exports = function( type, row, gifts, memberships_by_constituent_id, raw_constituent ) {
+const linked_gift_memberships_count = 5;
+
+const linked_constituent_memberships_count = 5;
+
+module.exports = function( type, row, gifts, membership_map, raw_constituent ) {
 
     var gift_ids = gifts.map( function( g ) { return g.Gf_CnBio_System_ID; } );
-    var membership_constituent_ids = memberships_by_constituent_id.map( function( m ) { return m.Mem_CnBio_System_ID; });
 
     // NOTE: Super time consuming operation here which runs in O(m log n),
     // where m is the number of constituents (~16k) and n is the number of gifts (~64k).
     var relevant_gifts_indices = search( gift_ids, row[ type + ' RE ID' ], compare );
-    var relevant_membership_indices_by_constituent = search( membership_constituent_ids, row[ type + ' RE ID' ], compare );
+    //var relevant_membership_indices_by_constituent = search( membership_constituent_ids, row[ type + ' RE ID' ], compare );
 
     // var valid = testMembershipPresence( relevant_gifts_indices, relevant_membership_indices );
     //
@@ -36,7 +39,7 @@ module.exports = function( type, row, gifts, memberships_by_constituent_id, raw_
 
     var donation_rows = makeDonationSetForConstituent( 'Contact1',
         relevant_gifts_indices.map( function( i ) { return gifts[ i ]; } ),
-        relevant_membership_indices_by_constituent.map( function( i ) { return memberships_by_constituent_id[ i ]; } ),
+        membership_map,
         raw_constituent
     );
 
@@ -51,7 +54,7 @@ module.exports = function( type, row, gifts, memberships_by_constituent_id, raw_
  * Donation-Related Logic
  *
  */
-function makeDonationSetForConstituent( constituent_type, gift_rows, memberships, raw_constituent ) {
+function makeDonationSetForConstituent( constituent_type, gift_rows, membership_map, raw_constituent ) {
 
     var result_rows = [];
 
@@ -92,287 +95,351 @@ function makeDonationSetForConstituent( constituent_type, gift_rows, memberships
 
         } else if ( isMembershipGift( gift ) ) {
 
-            /**
-             * Assumptions for how memberships are stored in RE:
-             *
-             * Memberships are only linked to the first gift that creates them.
-             * Remaining gifts are 'tacked on'.
-             *
-             * Assumptions:
-             *
-             *      - Gf_Letter_code === 'Gift Membership' &&
-             *
-             * Gift representing PAYMENTS for memberships are part of the Membership Campaign, but are not actually linked to memberships.
-             * Photo Guild Memberships do not have linked memberships.
-             *
-             */
+            var membership_rows = getMembershipGifts( gift, raw_constituent, membership_map );
 
-            if (
-                (typeof gift.Gf_Letter_code !== 'undefined' && gift.Gf_Letter_code.toLowerCase().indexOf('gift') !== -1) ||
-                (typeof gift.Gf_Reference !== 'undefined' && gift.Gf_Reference.toLowerCase().indexOf('gift') !== -1)
-            ) {
-
-                // Membership Related Gift is purportedly a gift.
-                // TODO: Extend this to check all linked memberships, not just _1_01.
-
-                if (
-                    typeof gift.Gf_Mem_1_01_System_ID !== 'undefined' && gift.Gf_Mem_1_01_System_ID !== ''
-                ) {
-
-                    // Membership Related Gift is purportedly a gift has a linked membership object.
-
-                    if (
-                        typeof raw_constituent.CnMem_1_01_Description !== 'undefined' && raw_constituent.CnMem_1_01_Description !== ''
-                    ) {
-
-                        //console.log('Case: Gift – has Gift Membership and Constituent Membership');
-
-                        // membership related gifting constituent has linked memberships
-                        // NOTE: certainty: high
-
-                        // TODO: See if these memberships match the linked membership.
-                        // TODO: if yes, this is an 'own gift' – Just create a membership record for the constituent.
-                        // TODO: mark the donation as 95% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                        // TODO: if no, this is a gift - create a Donation (Whatever Type) tied to this constituent,
-                        // TODO: mark the donation as 90% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                        // TODO: Then, get the membership from the membership set, and create a $0.00 Gift membership,
-                        //       With a reference to this constituent in the description.
-                        // TODO: mark the donation as 90% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-
-                    } else {
-
-                        //console.log('Case: Gift – has Gift Membership');
-
-                        // membership related gifting constituent does not have constituent memberships. This is a gift to the linked constituents.
-                        // NOTE: certainty: high
-
-                        // TODO: Create a Donation (whatever type is on the gift) Payment for this Constituent,
-                        // TODO: Get the membership from the membership set, and create a $0.00 Gift membership,
-                        //       With a reference to this constituent in the description.
-
-                    }
-
-                } else {
-
-                    if (
-                        typeof raw_constituent.CnMem_1_01_Description !== 'undefined' && raw_constituent.CnMem_1_01_Description !== ''
-                    ) {
-
-                        //console.log('Case: Gift – has Constituent Membership');
-
-                        // This gift has no attached memberships, but the constituent has a membership associated with it.
-                        // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, or was not
-
-                        // TODO: check cost. if cost is $0.00, create membership and relate it to gifting constituent
-                        // TODO: mark the donation as 50% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-
-                        // TODO: if cost is > $0.00, create Donation (whatever type), and relate it to the gifting constituent.
-                        // TODO: mark the donation as 50% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                    } else {
-
-                        console.log('Case: Gift – has nothing');
-
-                        // This gift has no attached membership, and the constituent has no associated memberships either.
-                        // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, and was not properly associated with a membership
-
-                        // TODO: Create a Donation (whatever type is on the gift) Payment for this Constituent,
-                        // TODO: mark the donation as 10% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                    }
-
-                }
-
-            } else {
-
-                if (
-                    typeof gift.Gf_Mem_1_01_System_ID !== 'undefined' && gift.Gf_Mem_1_01_System_ID !== ''
-                ) {
-
-                    // Membership Related Gift is purportedly a payment for a constituent membership.
-
-                    if (
-                        typeof raw_constituent.CnMem_1_01_Description !== 'undefined' && raw_constituent.CnMem_1_01_Description !== ''
-                    ) {
-
-                        //console.log('Case: Non-Gift – has Gift Membership and Constituent Membership');
-
-                        // membership related gifting constituent has linked memberships
-
-                        // TODO: See if these memberships match the linked membership.
-                        // TODO: if yes, this is a membership – Just create a membership record for the constituent.
-                        // TODO: mark the donation as 100% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                        // TODO: if no, this is a likely a mislabelled gift - create a Donation (Whatever Type) tied to this constituent,
-                        // TODO: mark the donation as 60% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                        // TODO: Then, get the membership from the membership set, and create a $0.00 Gift membership,
-                        //       With a reference to this constituent in the description.
-                        // TODO: mark the donation as 60% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-
-                    } else {
-
-                        //console.log('Case: Non-Gift – has Gift Membership');
-
-                        // This is either a lapsed membership which was deleted from the constituent, or a mislabelled gift.
-
-                        // TODO: Check name on gift membership.
-                        // TODO: if name matches constituent, this is a lapsed membership for the constituent
-                        // TODO: if yes, this is a membership – Just create a membership record for the constituent.
-                        // TODO: mark the donation as 90% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                        // TODO: if No, this is likely a mislabelled gift
-                        // TODO: Create a Donation (whatever type is on the gift) Payment for this Constituent,
-                        // TODO: mark the donation as 75% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                        // TODO: Get the membership from the membership set, and create a $0.00 Gift membership,
-                        //       With a reference to this constituent in the description.
-                        // TODO: mark the donation as 75% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                    }
-
-                } else {
-
-                    if (
-                        typeof raw_constituent.CnMem_1_01_Description !== 'undefined' && raw_constituent.CnMem_1_01_Description !== ''
-                    ) {
-
-                        //console.log('Case: Non-Gift – has Constituent Membership');
-
-                        // This gift has no attached memberships, but the constituent has a membership associated with it.
-                        // NOTE: Slightly Ambiguous, but probably safe.
-
-                        // TODO: Create a membership and relate it to the gifting constituent.
-                        // TODO: mark the donation as 85% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-                    } else {
-
-                        console.log('Case: Non-Gift – has nothing');
-
-                        // This gift has no attached membership, and the constituent has no associated memberships either.
-                        // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, and was not properly associated with a membership
-
-                        // TODO: Create a Donation (whatever type is on the gift) Payment for this Constituent,
-                        // TODO: mark the donation as 10% certainty
-                        // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
-
-
-
-                    }
-
-                }
-
-            }
-
-
-            // if ( typeof gift.Gf_Letter_code !== 'undefined' && gift.Gf_Letter_code.toLowerCase().indexOf('gift') !== -1 ) {
-            //
-            //     if ( parseFloat( format_currency( gift.Gf_Amount ) ) === 0 ) {
-            //
-            //         console.log('Assertion Failure: gift at no cost? ' + gift.Gf_Reference );
-            //
-            //     }
-            //
-            // }
-            //
-            //
-            // if ( typeof gift.Gf_Letter_code !== 'undefined' && gift.Gf_Letter_code.toLowerCase().indexOf('gift') === -1 ) {
-            //
-            //     if ( typeof raw_constituent.CnMem_1_01_Description === 'undefined' || raw_constituent.CnMem_1_01_Description === '' ) {
-            //
-            //         console.log('');
-            //
-            //         console.log( 'Assertion Failure: non-gift membership with no memberships associated with constituent: ' );
-            //
-            //         if ( typeof gift.Gf_Mem_1_01_System_ID !== 'undefined' && gift.Gf_Mem_1_01_System_ID !== '' ) {
-            //
-            //             console.log( 'Gift Listed Membership Constituent: ' + gift.Gf_Mem_1_01_Constit, 'Gifting Constituent: ' + gift.Gf_CnBio_Name );
-            //
-            //         } else {
-            //
-            //             console.log( 'Failure: No membership data on Gift or Constituent.' );
-            //
-            //         }
-            //         console.log('');
-            //
-            //
-            //     }
-
-
-
-                // if ( typeof gift.Gf_Mem_1_01_System_ID === 'undefined' || gift.Gf_Mem_1_01_System_ID !== '' ) {
-                //
-                //     if ( memberships.length === 0 ) {
-                //
-                //         console.log( 'Assertion Failure: Non-gift membership with no associated memberships' );
-                //
-                //     }
-                //
-                // }
-
-                // if ( memberships.length === 0 ) {
-                //
-                //     console.log( 'Assertion Failure: Non-gift membership (' + gift.Gf_Letter_code + ') with no associated memberships' );
-                //
-                // }
-
-            }
-
-
-
-
-
-            // if ( typeof gift.Gf_Mem_1_01_System_ID !== 'undefined' && gift.Gf_Mem_1_01_System_ID !== '' ) {
-            //
-            //     if ( raw_constituent.CnBio_Name !== gift.Gf_CnBio_Name || gift.Gf_CnBio_Name !== gift.Gf_Mem_1_01_Constit ) {
-            //
-            //         console.log( '' );
-            //         console.log( 'Name of Constituent: ' + raw_constituent.CnBio_Name );
-            //         console.log( 'Name of Gifter: ' + gift.Gf_CnBio_Name );
-            //         console.log( 'Name on Gift Membership: ' + gift.Gf_Mem_1_01_Constit );
-            //         console.log( '' );
-            //
-            //     }
-            //
-            //     // console.log( '' );
-            //     // console.log( 'Membership ID on Gift: ' + gift.Gf_Mem_1_01_System_ID );
-            //     // console.log( 'Membership IDs on Constituent Membership: ' + membership_map[ raw_constituent.CnBio_System_ID ].map( function( m ) { return m.Mem_System_ID; }));
-            //     // console.log( '' );
-            // }
-
-            // if ( isPledgedGift( gift ) ) {
-            //
-            //
-            // } else {
-            //
-            //
-            // }
-
-
+        }
 
     });
 
     return result_rows;
 
 }
+
+
+
+function getMembershipGifts( gift, constituent, membership_map ) {
+
+    /**
+     * Assumptions for how memberships are stored in RE:
+     *
+     *
+     *
+     */
+    var linked_gift_memberships = getLinkedMembershipsForGift( gift, membership_map );
+    var linked_constituent_memberships = getLinkedMembershipsForConstituent( constituent );
+
+    if (
+        membershipIsAGift( gift )
+    ) {
+
+        // Membership Related Gift is purportedly a gift, based on the assertions of the thank-you letter, Reference field,
+        // and
+        if (
+            linked_gift_memberships.length > 0
+        ) {
+
+            // Membership Related Gift is purportedly a gift has a linked membership object.
+
+            if (
+                linked_constituent_memberships.length > 0
+            ) {
+
+                //console.log('Case: Gift – has Gift Membership and Constituent Membership');
+
+                // membership related gifting constituent has linked memberships
+                // NOTE: certainty: high
+
+                // TODO: See if these memberships match the linked membership.
+                // TODO: if yes, this is an 'own gift' – Just create a membership record for the constituent.
+                // TODO: mark the donation as 95% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+                // TODO: if no, this is a gift - create a Donation (Whatever Type) tied to this constituent,
+                // TODO: mark the donation as 90% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+                // TODO: Then, get the membership from the membership set, and create a $0.00 Gift membership,
+                //       With a reference to this constituent in the description.
+                // TODO: mark the donation as 90% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+
+            } else {
+
+                // console.log('Case: Gift – has Gift Membership');
+
+                // membership related gifting constituent does not have constituent memberships. This is a gift to the linked constituents.
+                // NOTE: certainty: high
+
+                // TODO: Create a Donation (whatever type is on the gift) Payment for this Constituent,
+                // TODO: Get the membership from the membership set, and create a $0.00 Gift membership,
+                //       With a reference to this constituent in the description.
+
+            }
+
+        } else {
+
+            if (
+                linked_constituent_memberships.length > 0
+            ) {
+
+                //console.log('Case: Gift – has Constituent Membership');
+
+                // This gift has no attached memberships, but the constituent has a membership associated with it.
+                // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, or was not
+
+                // TODO: check cost. if cost is $0.00, create membership and relate it to gifting constituent
+                // TODO: mark the donation as 50% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+
+                // TODO: if cost is > $0.00, create Donation (whatever type), and relate it to the gifting constituent.
+                // TODO: mark the donation as 50% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+            } else {
+
+                //console.log('Case: Gift – has nothing');
+
+                // This gift has no attached membership, and the constituent has no associated memberships either.
+                // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, and was not properly associated with a membership
+
+                // TODO: Create a Donation (whatever type is on the gift) Payment for this Constituent,
+                // TODO: mark the donation as 10% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+            }
+
+        }
+
+    } else {
+
+        // This membership-related gift is likely not a gift for a constituent, but a direct membership.
+
+        if (
+            linked_gift_memberships.length > 0
+        ) {
+
+            // Membership Related Gift is purportedly a payment for a constituent membership.
+
+            if (
+                linked_constituent_memberships.length > 0
+            ) {
+
+                return getDoublyLinkedNongiftMemberships( gift, constituent, linked_constituent_memberships, linked_gift_memberships );
+
+                // console.log('Case: Non-Gift – has Gift Membership and Constituent Membership');
+
+                // membership related gifting constituent has linked memberships
+
+                // TODO: See if these memberships match the linked membership.
+                // TODO: if yes, this is a membership – Just create a membership record for the constituent.
+                // TODO: mark the donation as 100% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+                // TODO: if no, this is a likely a mislabelled gift - create a Donation (Whatever Type) tied to this constituent,
+                // TODO: mark the donation as 60% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+                // TODO: Then, get the membership from the membership set, and create a $0.00 Gift membership,
+                //       With a reference to this constituent in the description.
+                // TODO: mark the donation as 60% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+
+            } else {
+
+                //console.log('Case: Non-Gift – has Gift Membership');
+
+                // This is either a lapsed membership which was deleted from the constituent, or a mislabelled gift.
+
+                // TODO: Check name on gift membership.
+                // TODO: if name matches constituent, this is a lapsed membership for the constituent
+                // TODO: if yes, this is a membership – Just create a membership record for the constituent.
+                // TODO: mark the donation as 90% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+                // TODO: if No, this is likely a mislabelled gift
+                // TODO: Create a Donation (whatever type is on the gift) Payment for this Constituent,
+                // TODO: mark the donation as 75% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+                // TODO: Get the membership from the membership set, and create a $0.00 Gift membership,
+                //       With a reference to this constituent in the description.
+                // TODO: mark the donation as 75% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+            }
+
+        } else {
+
+            if (
+                linked_constituent_memberships.length > 0
+            ) {
+
+                //console.log('Case: Non-Gift – has Constituent Membership');
+
+                // This gift has no attached memberships, but the constituent has a membership associated with it.
+                // NOTE: Slightly Ambiguous, but probably safe.
+
+                // TODO: Create a membership and relate it to the gifting constituent.
+                // TODO: mark the donation as 85% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+            } else {
+
+                // console.log('Case: Non-Gift – has nothing');
+
+                // This gift has no attached membership, and the constituent has no associated memberships either.
+                // NOTE: Ambiguous. It's not clear whether this gift belongs to the constituent, and was not properly associated with a membership
+
+                // TODO: Create a Donation (whatever type is on the gift) Payment for this Constituent,
+                // TODO: mark the donation as 10% certainty
+                // TODO: Mark the payment as possible-membership in the DB, so it can be reviewed.
+
+
+
+            }
+
+        }
+
+    }
+
+
+
+}
+
+
+
+function getDoublyLinkedNongiftMemberships( gift, constituent, constituent_linked_memberships, gift_linked_memberships ) {
+
+    console.log('');
+    console.log('');
+    console.log( constituent.CnBio_Name );
+    console.log( gift.Gf_Date );
+    console.log('memberships on constituent: ');
+    console.log( constituent_linked_memberships );
+    console.log('memberships on gift: ');
+    console.log( gift_linked_memberships );
+    console.log('');
+    console.log('');
+
+}
+
+
+
+function membershipIsAGift( gift ) {
+    return (typeof gift.Gf_Letter_code !== 'undefined' && gift.Gf_Letter_code.toLowerCase().indexOf('gift') !== -1) ||
+           (typeof gift.Gf_Reference !== 'undefined' && gift.Gf_Reference.toLowerCase().indexOf('gift') !== -1);
+}
+
+
+
+function getLinkedMembershipsForGift( gift, membership_map ) {
+
+    var result = [];
+
+    for ( var i = 1; i <= linked_gift_memberships_count; i++ ) {
+
+        var name = gift[ 'Gf_Mem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Constit' ];
+
+        if ( typeof name !== 'undefined' && name !== '' ) {
+
+            var raw_memberships = membership_map[ name ];
+
+            if ( typeof raw_memberships !== 'undefined' ) {
+
+                var mapping = {};
+
+                //mapping.Mem_AddedBy = 'Membership Added By';
+                mapping.Mem_Category = 'Membership Category';
+                mapping.Mem_Consecutive_Years = 'Membership Consecutive Years';
+                mapping.Mem_Current_Dues_Amount = 'Membership Current Dues Amount';
+                mapping.Mem_DateAdded = 'Membership Date Added';
+                mapping.Mem_Date_Joined = 'Membership Date Joined';
+                mapping.Mem_DateChanged = 'Membership Date Changed';
+                mapping.Mem_Description = 'Membership Description';
+                mapping.Mem_Last_Dropped_Date = 'Membership Date Last Dropped';
+                mapping.Mem_Last_Renewed_Date = 'Membership Date Last Renewed';
+                mapping.Mem_Notes = 'Membership Notes';
+                mapping.Mem_Primary = 'Membership Is Primary';
+                mapping.Mem_Program = 'Membership Program';
+                mapping.Mem_Standing = 'Membership Standing';
+                mapping.Mem_Total_Children = 'Membership Total Children';
+                mapping.Mem_Total_Members = 'Membership Total Members';
+                mapping.Mem_Total_Years = 'Membership Total Years';
+                mapping.Mem_CnBio_System_ID = 'Membership Constituent ID';
+                mapping.Mem_CnBio_Name = 'Membership Constituent Name';
+
+                for ( var j = 0; j < raw_memberships.length; j += 1 ) {
+
+                    var mem = makeSurjectiveMappingWith( mapping )( raw_memberships[j] );
+
+                    if ( !emptyRecord( mem ) ) { result.push( mem ); }
+
+                }
+
+            }
+
+        }
+
+    }
+
+    return result;
+
+}
+
+
+function getLinkedMembershipsForConstituent( constituent ) {
+
+    var result = [];
+
+    for ( var i = 1; i <= linked_constituent_memberships_count; i++ ) {
+
+        var mapping = {};
+
+        // mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_AddedBy' ] = 'Membership Added By';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Category' ] = 'Membership Category';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Consecutive_Years' ] = 'Membership Consecutive Years';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Current_Dues_Amount' ] = 'Membership Current Dues Amount';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_DateAdded' ] = 'Membership Date Added';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Date_Joined' ] = 'Membership Date Joined';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_DateChanged' ] = 'Membership Date Changed';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Description' ] = 'Membership Description';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Last_Dropped_Date' ] = 'Membership Date Last Dropped';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Last_Renewed_Date' ] = 'Membership Date Last Renewed';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Notes' ] = 'Membership Notes';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Primary' ] = 'Membership Is Primary';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Program' ] = 'Membership Program';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Standing' ] = 'Membership Standing';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Total_Children' ] = 'Membership Total Children';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Total_Members' ] = 'Membership Total Members';
+        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Total_Years' ] = 'Membership Total Years';
+
+        var mem = makeSurjectiveMappingWith( mapping )( constituent );
+
+        if ( !emptyRecord( mem ) ) {
+            mem['Membership Constituent ID'] = constituent.CnBio_System_ID;
+            mem['Membership Constituent Name'] = constituent.CnBio_Name;
+            result.push( mem );
+        }
+
+    }
+
+    return result;
+
+}
+
+
+function emptyRecord( record ) {
+
+    var empty = true;
+
+    for ( var key in record ) {
+        if ( record.hasOwnProperty( key ) ) {
+
+            if ( record[ key ] !== '' ) {
+                empty = false;
+                break;
+            }
+
+        }
+    }
+
+    return empty;
+
+}
+
 
 
 
@@ -421,9 +488,13 @@ function makeCashGift( gift, donation_row ) {
     cash_row['Donation Type'] = 'Cash';
     cash_row['Donation Stage'] = ''; // Defaults to Closed/Won, which is what we want for this type of simple gift.
     cash_row['Donation Acknowledgement Status'] = 'Acknowledged';
+    cash_row['Donation Certainty'] = 100;
+    cash_row['Donation Migration Description'] = 'Single cash gift linked directly to Primary Donor.'
     cash_row['Payment Date'] = format_date( gift.Gf_Check_date || gift.Gf_Date );
     cash_row['Payment RE ID'] = cash_row['Donation RE ID'];
     cash_row['Payment Paid'] = 1;
+    cash_row['Payment Certainty'] = 100;
+    cash_row['Payment Migration Description'] = 'Payment automatically created to match donation.'
     cash_row['Payment Amount'] = cash_row['Donation Amount'];
 
     return cash_row;
@@ -460,6 +531,10 @@ function makeStockGift( gift, donation_row ) {
     stock_row['Donation Record Type Name'] = 'Donation (Stock)';
     stock_row['Donation Type'] = 'Stock';
     stock_row['Donation Acknowledgement Status'] = 'Acknowledged';
+    stock_row['Donation Certainty'] = 100;
+    stock_row['Donation Migration Description'] = 'Single stock gift linked directly to Primary Donor.'
+    stock_row['Payment Certainty'] = 100;
+    stock_row['Payment Migration Description'] = 'Payment automatically created to match donation.'
     stock_row['Payment Date'] = format_date( gift.Gf_Sale_of_stock_date || gift.Gf_Date );
     stock_row['Payment Paid'] = 1;
     stock_row['Payment Amount'] = stock_row['Donation Amount'];
@@ -480,6 +555,8 @@ function makePledge( gift, pledge_row ) {
     pledge_row['Donation Installment Plan'] = normalizeInstallmentPlan( gift.Gf_Installmnt_Frqncy );
     pledge_row['Donation Installment Schedule'] = gift.Gf_Installment_schedule;
     pledge_row['Donation Acknowledgement Status'] = 'Acknowledged'; // TODO: verify that this is the right acknowledgement stage for the gift.
+    pledge_row['Donation Certainty'] = 100;
+    pledge_row['Donation Migration Description'] = 'Single pledge gift linked directly to Primary Donor.'
     pledge_row['Payment Paid'] = 0;
 
 
@@ -547,7 +624,14 @@ function aggregateResultingPayments( pledge, payments ) {
 
     });
 
-    return result.map( function( payment ){ payment[0].FLAGGED_SEEN = true; return payment[1]; });
+    return result.map( function( payment ){
+
+        payment[1]['Payment Certainty'] = ( sum === pledged_amount ) ? 100 : 85;
+        payment[1]['Payment Migration Description'] = ( sum === pledged_amount ) ? 'Exactly matched a set of pledge payments to this pledge.' : 'Partially matched a set of pledge payments to this pledge.';
+        payment[0].FLAGGED_SEEN = true;
+        return payment[1];
+
+    });
 
 }
 
@@ -592,6 +676,8 @@ function getPledgePayments( gift, gift_rows, pledge, constituent_type ) {
             var payment = installments[0];
 
             payment[0].FLAGGED_SEEN = true;
+            payment[1]['Payment Certainty'] = 100;
+            payment[1]['Payment Migration Description'] = 'Matched a single ' + payment[0].Gf_Type  + ' payment to this pledge.';
             return [ payment[1] ];
 
         }

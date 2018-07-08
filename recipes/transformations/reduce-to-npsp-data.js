@@ -22,6 +22,11 @@ const contact1_individual_relations = 5;
 
 const contact1_organizational_relations = 5;
 
+var membership_map = {};
+var membership_map_constructed = false;
+
+var constituent_row_prototypes = {};
+var membership_row_prototypes = {};
 
 module.exports = RowMapReduce(
     '(Constituents × Gifts) → NPSP_Import',
@@ -32,6 +37,7 @@ module.exports = RowMapReduce(
         var gifts = secondaries[0];
         var memberships_by_constituent_id = secondaries[1];
 
+        constructMembershipMap( memberships_by_constituent_id );
 
         if ( isIndividualConstituent( row ) ) {
 
@@ -63,7 +69,7 @@ module.exports = RowMapReduce(
                 'Contact1',
                 contact1_row,
                 gifts,
-                memberships_by_constituent_id,
+                membership_map,
                 row
             );
 
@@ -874,21 +880,27 @@ function normalizeSalutation( code ) {
 // suffixes
 function condenseSuffix( s1, s2 ) { return s1 + s2; }
 
-// Parking Lot
 
-// Create a Primary Business for Constituent, if Relevant.
+function constructMembershipMap( memberships ) {
 
+    if( !membership_map_constructed ) {
 
-// for ( var i = 1; i <= contact1_organizational_relations; i += 1 ) {
-//
-//     var prefix = makeIndexedPrefix('CnRelOrg', '1', i );
-//
-//     if ( individualConstituentHasAccountRelation( prefix, row ) ) {
-//
-//         var rel = makeAccount1forContact1( prefix, prefix + 'Ph', 5, row );
-//
-//         result.push( duplicateWith( contact1_row, rel ) );
-//
-//     }
-//
-// }
+        memberships.forEach( function( membership ) {
+
+            if ( typeof membership_map[ membership.Mem_CnBio_Name ] === 'undefined' ) {
+
+                membership_map[ membership.Mem_CnBio_Name ] = [ membership ];
+
+            } else {
+
+                membership_map[ membership.Mem_CnBio_Name ].push( membership );
+
+            }
+
+        });
+
+        membership_map_constructed = true
+
+    }
+
+}
