@@ -177,7 +177,7 @@ fields.NPSPImport = {
         'Donation Stock Unit Value',
         'Donation Stock Units Issued',
         'Donation Stock Broker Fee',
-        'Donation Campaign Name',
+        'Campaign Name',
         'Donation RE Campaign', // Tries to match an existing campaign by name. If no match is found, will create a new campaign.
         'Donation RE Appeal',
         'Donation RE Fund',

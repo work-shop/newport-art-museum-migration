@@ -113,6 +113,9 @@ function CSVDataPipeline( sources, target ) {
 
     self.__writeOutputFile = function( then = function() {} ) {
 
+        const size_limit = 10000;
+        var count = 0;
+
         if ( self.__rows instanceof pandas.DataFrame ) {
 
             var csv_string = self.__rows.to_csv();

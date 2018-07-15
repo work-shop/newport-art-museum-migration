@@ -101,8 +101,8 @@ module.exports = RowMapReduce(
 
             account1_gifts.forEach( postDonationRows( account1_row, result ) );
 
-            if ( typeof membership_row_prototypes[ account1_row['Contact1 RE ID'] ] !== 'undefined') {
-                membership_row_prototypes[ account1_row['Contact1 RE ID'] ].forEach( function(donation_row) {
+            if ( typeof membership_row_prototypes[ account1_row['Account1 RE ID'] ] !== 'undefined') {
+                membership_row_prototypes[ account1_row['Account1 RE ID'] ].forEach( function(donation_row) {
                     contact1_gifts.push( duplicateWith(account1_row, donation_row) );
                 });
             }
