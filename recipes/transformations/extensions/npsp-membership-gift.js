@@ -25,7 +25,20 @@ var makePledgeGift = require('./npsp-pledge-gift.js').makePledgeGift;
 var makePledgePayments = require('./npsp-pledge-gift.js').makePledgePayments;
 
 
-
+/**
+ * Given a set of constituent parameters, a raiser's edge gift attribution, membership record, certainty, migration description,
+ * total set of ordered rows, and set of overrides, this routine constructs the appropriate membership gift for this configuration.
+ *
+ * @param constituent_type string "Contact" or "Account"
+ * @param raw_gift RE Gift row
+ * @param membership constructed RE Membership object.
+ * @param certainty [1,100] a percentage certainty about this membership assignment.
+ * @param description a description describing the situation in which this membership object was encountered.
+ * @param gift_rows the total set of gift_rows in the database
+ * @param overrides object a set of keys to override explicitly on the membership
+ * @return Array<Membership Gift>
+ *
+ */
 function makeMembershipGift( constituent_type, raw_gift, membership, certainty, description, gift_rows, overrides = {} ) {
 
     var base_row = makeBaseGift( raw_gift, constituent_type );

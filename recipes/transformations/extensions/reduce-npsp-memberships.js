@@ -8,6 +8,9 @@ var allEntriesEqual = require('./objects.js').allEntriesEqual;
 var makeMembershipGift = require('./npsp-membership-gift.js').makeMembershipGift;
 var makeGiftMembershipGifts = require('./npsp-membership-gift.js').makeGiftMembershipGifts;
 
+var giftViableForMembershipByDate = require('./npsp-membership-heuristics.js').giftViableForMembershipByDate;
+var giftViableForMembershipByPrice = require('./npsp-membership-heuristics.js').giftViableForMembershipByPrice;
+
 var formatCurrency = require('./format-currency.js');
 
 
@@ -83,12 +86,12 @@ function getMembershipGifts( gift, constituent, membership_map, constituent_type
      */
     if ( gₘ.length > 0 ) {
 
-        return selectGiftLinkedMembership( gₘ, cₘ, constituent, gift, constituent_type );
+        return selectGiftLinkedMembership( gₘ, cₘ, constituent, gift, constituent_type, gift_rows );
 
     } else if ( cₘ.length > 0 ) {
 
         //__c_cm('Case: cₘ > 0 and gₘ = 0: Found a gift with linked-constituent memberships only.');
-        return selectConstituentLinkedMembership( cₘ, constituent, gift, constituent_type );
+        return selectConstituentLinkedMembership( cₘ, constituent, gift, constituent_type, gift_rows );
 
     } else {
 
@@ -105,7 +108,7 @@ function getMembershipGifts( gift, constituent, membership_map, constituent_type
         //
         // }
 
-        return createMembershipForEmptyGift( constituent, gift, constituent_type );
+        return createMembershipForEmptyGift( constituent, gift, constituent_type, gift_rows );
 
     }
 
@@ -116,26 +119,22 @@ function getMembershipGifts( gift, constituent, membership_map, constituent_type
  * Given a set of gift-linked and constituent linked memberships,
  *
  */
-function selectGiftLinkedMembership( gₘ, cₘ, c, g, type ) {
+function selectGiftLinkedMembership( gₘ, cₘ, c, g, type, gift_rows ) {
 
     if ( gₘ.length > 1 ) {
-        // __c_gm_gt_1('Case gₘ > 1: Found a gift with more than one gift-linked membership.');
-        /**
-         * In this case, we have more than one gift membership associated with this gift. We need to select the one that is most likely to
-         * be related to this gift.
-         */
-        var m = selectMostLikelyMembershipForGift( gₘ, c, g );
 
+        // NOTE: In this case, we have more than one gift membership associated with this gift. We need to select the one that is most likely to be related to this gift.
 
+        var ms = selectMostLikelyMembershipForGift( gₘ, c, g );
+
+        return ms.map( function( m, i ) { return createMembershipForGift( m, c, g, type, gift_rows, 90, ( i > 0 ) ? {'Donation Amount': 0} : {} ); })
+                 .reduce( function( a,b ) { return a.concat( b ); }, []);
 
     } else {
-        // __c_gm_eq_1('Case gₘ = 1: Found a gift with exactly one gift-linked membership.');
-        // __c_gm('Case: cₘ = 0 and gₘ > 0: Found a gift with linked-gift memberships only.');
-        /**
-         * In this case, we have exactly one membership associated with the gift.
-         * Use this as the membership to create for this gift.
-         */
-        return createMembershipForGift( gₘ[0], c, g, type );
+
+        // NOTE: In this case, we have exactly one membership associated with the gift.Use this as the membership to create for this gift.
+
+        return createMembershipForGift( gₘ[0], c, g, type, gift_rows );
 
     }
 
@@ -144,13 +143,15 @@ function selectGiftLinkedMembership( gₘ, cₘ, c, g, type ) {
 }
 
 
-function selectConstituentLinkedMembership( cₘ, c, g, type ) {
+function selectConstituentLinkedMembership( cₘ, c, g, type, gift_rows ) {
 
     if ( cₘ.length > 1 ) {
         //__c_cm_gt_1('Case cₘ > 1: Found a gift for a constituent with more than one constituent-linked membership');
 
     } else {
-        //__c_cm_eq_1('Case cₘ = 1: Found a gift for a constituent with more exactly one constituent-linked membership');
+        __c_cm_eq_1('Case cₘ = 1: Found a gift for a constituent with more exactly one constituent-linked membership');
+
+        return createMembershipForGift( cₘ[0], c, g, type, gift_rows );
 
     }
 
@@ -161,15 +162,21 @@ function selectConstituentLinkedMembership( cₘ, c, g, type ) {
 /**
  * Given a set of memberships, a gift, and a constituent,
  * selects the most likelt membership for the constituent and gift combination.
+ *
+ * @param ms a set of memberships to narrow down as much as possible.
+ * @param c an RE constituent to reference
+ * @param g a gift record associated with c
+ * @return Array<Membership Row> a set of membership records to create gifts for. Gift amount should be attributed to the first record.
  */
 function selectMostLikelyMembershipForGift( ms, c, g ) {
 
     var valid_by_datetime = ms.filter( function( m ) { return giftViableForMembershipByDate( g, m ); } );
 
     if ( valid_by_datetime.length === 1 ) {
-        //__eq_1('Single Valid Choice (by date/time heuristic)');
 
-        return valid_by_datetime[0];
+        // NOTE: In this case, we found a single membership inside of the daterange for the gift.
+
+        return [ valid_by_datetime[0] ];
 
     } else if ( valid_by_datetime.length > 1 ) {
 
@@ -177,7 +184,7 @@ function selectMostLikelyMembershipForGift( ms, c, g ) {
 
         if ( valid_by_price_heuristic.length > 1 ) {
 
-            //__gt_1('Multiple Valid Choices (by price heuristic)');
+            // TODO: Implement a weak equality procedure selecting for weeding out duplicate constituents. Consider an edit-distance based heuristic on the constituent name to weed out duplicates.
 
             if ( !allEntriesEqual( valid_by_price_heuristic, function( a,b ) {  return a['Membership Constituent Name'] === b['Membership Constituent Name']; }) ) {
                 console.log('--');
@@ -185,29 +192,33 @@ function selectMostLikelyMembershipForGift( ms, c, g ) {
                 console.log('--');
             }
 
-            return valid_by_price_heuristic[0];
+            // NOTE: In this case, we found a number of duplicate membership records, so we selected one membership.
 
-            // TODO: Implement a weak equality procedure selecting for weeding out duplicate constituents.
-            // NOTE: Not needed.
-
-            // TODO: Consider an edit-distance based heuristic on the constituent name to weed out duplicates.
+            return [ valid_by_price_heuristic[0] ];
 
         } else if ( valid_by_price_heuristic.length === 1 ) {
 
-            return valid_by_price_heuristic[ 0 ];
+            return [ valid_by_price_heuristic[ 0 ] ];
 
         } else {
-            __zero('No Valid Choices (by price heuristic)');
+
+            // NOTE: In this case, we're encountering a gift that was paid for with a nonstandard amount, or a combined payment.
+
+            return valid_by_datetime;
 
         }
 
     } else {
-        __zero('No Valid Choices (by date/time heuristic)');
+
+        // NOTE: In this case, we're encountering a gift that falls outside of the bounds of a valid time interval.
+        // We have no choice but to return the proffered set of memberships, and create gifts for each.
+
+        return ms;
 
     }
 
 
-    return {};
+    return [];
 
 }
 
@@ -216,19 +227,19 @@ function selectMostLikelyMembershipForGift( ms, c, g ) {
  * this routine constructs one or more gifts represting this membership record.
  *
  */
-function createMembershipForGift( m, c, g, type, gs ) {
+function createMembershipForGift( m, c, g, type, gs, cert = 100, overrides = {} ) {
 
     if ( m['Membership Constituent Name'] === c.CnBio_Name ) {
         //__self('Self membership');
 
         let d = 'This was a Raiser\'s Edge Gift that was connected to a membership that belonged to the constituent who made the gift.';
-        return makeMembershipGift( type, g, m, 100, d, gs );
+        return makeMembershipGift( type, g, m, cert, d, gs, overrides );
 
     } else {
         //__gift('Gift membership');
 
         let d = 'This was a Raiser\'s Edge gift was attached to a membership that was different from the constituent who made the gift.';
-        return makeGiftMembershipGifts( type, g, m, 95, d, gs );
+        return makeGiftMembershipGifts( type, g, m, cert, d, gs, overrides );
 
     }
 
@@ -238,136 +249,9 @@ function createMembershipForGift( m, c, g, type, gs ) {
  * Given a gift with no linked memberships, associated with a constituent with no linked memberships,
  * Make a best-guess membership for the constituent.
  */
-function createMembershipForEmptyGift( c, g, type ) {
+function createMembershipForEmptyGift( c, g, type, gift_rows ) {
 
     return [];
-
-}
-
-
-function giftViableForMembershipByPrice( gift, membership ) {
-
-    var amount = formatCurrency( gift.Gf_Amount );
-
-    switch( membership['Membership Category'].toLowerCase() ) {
-        case 'artist\'s guild-household':
-            return amount === 30; //
-
-        case 'conklin shop staff':
-            return amount === 0; //
-
-        case 'patron membership-honorarium':
-            return amount === 150; // TODO What should this be?
-
-        case 'benefactor membership':
-            return amount === 1000;
-
-        case 'contributing membership':
-            return 'Contributing';
-
-        case 'council membership':
-            return amount === 500 || amount === 550;
-
-        case 'faculty membership':
-            return amount === 0;
-
-        case 'family membership': // TODO is this real?
-        case 'household membership':
-            return amount === 50 || amount === 75;
-
-        case 'individual membership':
-            return amount === 45 || amount === 50;
-
-        case 'military household':
-        case 'military household membership':
-            return amount === 50;
-
-        case 'military individual membership':
-            return amount === 35 || amount === 40;
-
-        case 'patron membership':
-            return amount === 150 || amount === 175;
-
-        case 'photo guild':
-            return amount === 20 || amount === 25;
-
-        case 'senior household':
-        case 'senior household membership':
-            return amount === 50 || amount === 60;
-
-        case 'senior membership':
-            return amount === 35 || amount === 40;
-
-        case 'staff membership':
-            return amount === 0;
-
-        case 'student membership':
-            return amount === 25 || amount === 30;
-
-        case 'supporting  membership':
-        case 'supporting membership':
-            return amount === 250 || amount === 275;
-
-        case '':
-            return amount === 1000;
-
-        case 'life membership':
-        case 'university membership':
-        case 'young benefactor membership':
-        case 'student membership-muse':
-        case 'partners in art-nonprofit service organization':
-        case 'partners in art b&b':
-            return true;
-
-        default:
-            return true;
-    }
-}
-
-/**
- * This routine implements a heuristic for deciding whether
- * a given could reasonably have been associated with a gift.
- * This is done based on gift date and recorded membership dates.
- */
-function giftViableForMembershipByDate( gift, membership ) {
-
-    var membership_epsilon = 2;
-
-    var gift_date = moment( gift.Gf_Date );
-    var membership_added_date = moment( membership['Membership Date Added'] );
-    var membership_start_date = moment( membership['Membership Date Joined'] );
-    var membership_renewed_date = moment( membership['Membership Date Last Renewed'] );
-    var membership_dropped_date = moment( membership['Membership Date Last Dropped'] );
-    var membership_last_changed_date = moment( membership['Membership Date Last Changed'] );
-
-    var matches_start = (gift_date.isSameOrAfter( membership_start_date.subtract(membership_epsilon, 'months') ) || gift_date.isSameOrAfter(membership_added_date.subtract(membership_epsilon, 'months') ) );
-
-    if ( membership_last_changed_date.isValid() ) {
-
-        var v = gift_date.isSameOrBefore( membership_last_changed_date ) && matches_start;
-
-        return v;
-
-    } if ( membership_renewed_date.isValid() ) {
-
-        var v = gift_date.isSameOrBefore( membership_renewed_date ) && matches_start;
-
-        return v;
-
-
-    } else if ( membership_dropped_date.isValid() ) {
-
-        var v = gift_date.isBefore( membership_dropped_date ) && matches_start;
-
-        return v;
-
-
-
-    } else {
-
-        return matches_start;
-
-    }
 
 }
 
