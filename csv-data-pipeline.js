@@ -3,9 +3,7 @@
 var fs = require('fs');
 
 var parser = require('csv-parser');
-var writer = require('csv-write-stream')();
 var ProgressBar = require('progress');
-var pandas = require('pandas-js');
 var sort = require('array-sort');
 
 
@@ -114,41 +112,33 @@ function CSVDataPipeline( sources, target ) {
     self.__writeOutputFile = function( then = function() {} ) {
 
         const size_limit = 10000;
-        var count = 0;
+        const total_rows = self.__rows.length;
+        const num_files = Math.ceil( total_rows / size_limit );
 
-        if ( self.__rows instanceof pandas.DataFrame ) {
+        var writers = (new Array( num_files )).fill( 0 ).map( function() { return require('csv-write-stream')(); });
 
-            var csv_string = self.__rows.to_csv();
+        for ( let i = 0; i < num_files; i += 1 ) {
 
-            fs.writeFile( self.__outputfile, csv_string, function() {
+            let local_writer = writers[i];
 
-                self.__progress.interrupt('\t[✔] Done\n' );
-                self.__progress.tick( 1 );
-                console.log('\n');
+            local_writer.pipe( fs.createWriteStream( self.__outputfile + '-' + i ) );
 
-                then();
+            for ( var j = 0; j < size_limit && (i * size_limit) + j < total_rows; j += 1 ) {
 
-            } );
+                local_writer.write( self.__rows[ (i * size_limit) + j ] );
 
-        } else {
+            }
 
-            writer.pipe( fs.createWriteStream( self.__outputfile ) );
-
-            self.__rows.forEach( function( row ) {
-
-                writer.write( row );
-
-            });
-
-            self.__progress.interrupt('\t[✔] Done\n' );
-            self.__progress.tick( 1 );
-            console.log('\n');
-
-            writer.end();
-
-            then();
+            local_writer.end();
 
         }
+
+        self.__progress.interrupt('\t[✔] Done\n' );
+        self.__progress.tick( 1 );
+        console.log('\n');
+
+        then();
+
 
     }
 
