@@ -73,40 +73,21 @@ function getMembershipGifts( gift, constituent, membership_map, constituent_type
     var gₘ = removeDuplicateMemberships( getLinkedMembershipsForGift( gift, membership_map ) );
     var cₘ = getLinkedMembershipsForConstituent( constituent );
 
-    /**
-     * NOTE: Dont filter at this step – we'll filter where needed in subroutines.
-     */
-    // var gₘ = raw_gₘ.filter( function( m ) { return giftViableForMembership( gift, m ); });
-    // var cₘ = raw_cₘ.filter( function( m ) { return giftViableForMembership( gift, m ); });
-
-    /**
-     * Viable memberships are memberships whose associated dates of activity fall
-     * inside a reasonable range of the gift date. First things first, let's construct the
-     * set of memberships cₘ and gₘ that are viable for the given gift.
-     */
     if ( gₘ.length > 0 ) {
 
-        return selectGiftLinkedMembership( gₘ, cₘ, constituent, gift, constituent_type, gift_rows );
+        // NOTE: In this case, we found a gift with linked memberhsips associated with it. Go ahead and build gift records based on those gifts.
+
+        return selectLinkedMembership( gₘ, constituent, gift, constituent_type, gift_rows );
 
     } else if ( cₘ.length > 0 ) {
 
-        //__c_cm('Case: cₘ > 0 and gₘ = 0: Found a gift with linked-constituent memberships only.');
-        return selectConstituentLinkedMembership( cₘ, constituent, gift, constituent_type, gift_rows );
+        // NOTE: In this case, we found no memberships on the gift, but the constituent had linked memberhsips associated with it. Go ahead and build gift records based on the constituent membership.
+
+        return selectLinkedMembership( cₘ, constituent, gift, constituent_type, gift_rows );
 
     } else {
 
-        // __c_empty('Case: cₘ = 0 and gₘ = 0: Found a gift with no linked memberships.');
-
-        // if ( raw_gₘ.length > 0 || raw_cₘ.length > 0 ) {
-        //
-        //     console.log('--');
-        //     console.log( gift.Gf_Date );
-        //     console.log( gift.Gf_CnBio_Name );
-        //     console.log( raw_gₘ );
-        //     console.log( raw_cₘ );
-        //     console.log('--');
-        //
-        // }
+        // NOTE: In this case, we found a gift record with no constituent info on it, and no membership info on it.
 
         return createMembershipForEmptyGift( constituent, gift, constituent_type, gift_rows );
 
@@ -118,37 +99,17 @@ function getMembershipGifts( gift, constituent, membership_map, constituent_type
 
 
 /**
- * Given a set of gift-linked and constituent linked memberships,
+ *
  *
  */
-function selectGiftLinkedMembership( gₘ, cₘ, c, g, type, gift_rows ) {
+function selectLinkedMembership( ms, c, g, type, gift_rows ) {
 
-    if ( gₘ.length > 1 ) {
+    if ( ms.length > 1 ) {
 
-        // NOTE: In this case, we have more than one gift membership associated with this gift. We need to select the one that is most likely to be related to this gift.
+        var filtered_ms = selectMostLikelyMembershipForGift( ms, c, g );
 
-        var ms = selectMostLikelyMembershipForGift( gₘ, c, g );
-
-        return ms.map( function( m, i ) { return createMembershipForGift( m, c, g, type, gift_rows, 90, ( i > 0 ) ? {'Donation Amount': 0} : {} ); })
+        return filtered_ms.map( function( m, i ) { return createMembershipForGift( m, c, g, type, gift_rows, 90, ( i > 0 ) ? {'Donation Amount': 0} : {} ); })
                  .reduce( function( a,b ) { return a.concat( b ); }, []);
-
-    } else {
-
-        // NOTE: In this case, we have exactly one membership associated with the gift.Use this as the membership to create for this gift.
-
-        return createMembershipForGift( gₘ[0], c, g, type, gift_rows );
-
-    }
-
-    return [];
-
-}
-
-
-function selectConstituentLinkedMembership( cₘ, c, g, type, gift_rows ) {
-
-    if ( cₘ.length > 1 ) {
-        //__c_cm_gt_1('Case cₘ > 1: Found a gift for a constituent with more than one constituent-linked membership');
 
     } else {
         //__c_cm_eq_1('Case cₘ = 1: Found a gift for a constituent with exactly one constituent-linked membership');
@@ -157,7 +118,7 @@ function selectConstituentLinkedMembership( cₘ, c, g, type, gift_rows ) {
         // console.log( g.Gf_CnBio_Name );
         // console.log( cₘ[0]['Membership Constituent Name'] );
 
-        return createMembershipForGift( cₘ[0], c, g, type, gift_rows );
+        return createMembershipForGift( ms[0], c, g, type, gift_rows );
 
     }
 
@@ -258,7 +219,9 @@ function createMembershipForGift( m, c, g, type, gs, cert = 100, overrides = {} 
  */
 function createMembershipForEmptyGift( c, g, type, gift_rows ) {
 
-    return [];
+    var m = buildMembershipForUnlinkedConstituent( c, g )
+
+    return createMembershipForGift( m, c, g, type, gift_rows, 50 );
 
 }
 
@@ -404,6 +367,36 @@ function getLinkedMembershipsForConstituent( constituent ) {
     }
 
     return result;
+
+}
+
+/**
+ *
+ */
+function buildMembershipForUnlinkedConstituent( constituent, gift ) {
+
+    var membership = {
+        "Membership Category": '',
+        "Membership Consecutive Years": "1",
+        "Membership Current Dues Amount": "$0.00",
+        "Membership Date Added": gift.Gf_Date,
+        "Membership Date Joined": gift.Gf_Date,
+        "Membership Date Changed": gift.Gf_Date,
+        "Membership Description": '',
+        "Membership Date Last Dropped": '',
+        "Membership Date Last Renewed": '',
+        "Membership Notes": '',
+        "Membership Is Primary": '',
+        "Membership Program": '',
+        "Membership Standing": '',
+        "Membership Total Children": '0',
+        "Membership Total Members": '1',
+        "Membership Total Years": '1',
+        "Membership Constituent ID": constituent.CnBio_System_ID,
+        "Membership Constituent Name": constituent.CnBio_Name
+    };
+
+    return membership;
 
 }
 
