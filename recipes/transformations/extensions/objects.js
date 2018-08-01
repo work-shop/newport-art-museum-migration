@@ -32,6 +32,23 @@ module.exports = {
 
             return result;
         }
+    },
+
+    allEntriesEqual: function( set, isEqual ) {
+        if ( set.length > 0 ) {
+
+            return set.reduce( function( a,b ) {
+
+                return [ a[0] && isEqual( a[1], b ), b ];
+
+            }, [true, set[0]] )[0];
+
+        } else {
+
+            return true;
+
+        }
+
     }
 
 };

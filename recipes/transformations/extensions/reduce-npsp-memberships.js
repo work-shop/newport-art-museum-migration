@@ -3,10 +3,12 @@
 var moment = require('moment');
 
 var makeSurjectiveMappingWith = require('./objects.js').makeSurjectiveMappingWith;
+var allEntriesEqual = require('./objects.js').allEntriesEqual;
 
 var makeMembershipGift = require('./npsp-membership-gift.js').makeMembershipGift;
 var makeGiftMembershipGifts = require('./npsp-membership-gift.js').makeGiftMembershipGifts;
 
+var formatCurrency = require('./format-currency.js');
 
 
 const gift_note_count = 3;
@@ -44,6 +46,11 @@ var __c_fail = count('fail');
 
 var __gift = count( 'gift' );
 var __self = count( 'self' );
+
+var __gt_1 = count( 'gt_1' );
+var __eq_1 = count( 'eq_1' );
+var __zero = count( 'zero' );
+
 
 /**
  * The main routine for this module.
@@ -120,6 +127,7 @@ function selectGiftLinkedMembership( gₘ, cₘ, c, g, type ) {
         var m = selectMostLikelyMembershipForGift( gₘ, c, g );
 
 
+
     } else {
         // __c_gm_eq_1('Case gₘ = 1: Found a gift with exactly one gift-linked membership.');
         // __c_gm('Case: cₘ = 0 and gₘ > 0: Found a gift with linked-gift memberships only.');
@@ -127,9 +135,7 @@ function selectGiftLinkedMembership( gₘ, cₘ, c, g, type ) {
          * In this case, we have exactly one membership associated with the gift.
          * Use this as the membership to create for this gift.
          */
-        var m = gₘ[0];
-        return createMembershipForGift( m, c, g, type );
-
+        return createMembershipForGift( gₘ[0], c, g, type );
 
     }
 
@@ -158,6 +164,49 @@ function selectConstituentLinkedMembership( cₘ, c, g, type ) {
  */
 function selectMostLikelyMembershipForGift( ms, c, g ) {
 
+    var valid_by_datetime = ms.filter( function( m ) { return giftViableForMembershipByDate( g, m ); } );
+
+    if ( valid_by_datetime.length === 1 ) {
+        //__eq_1('Single Valid Choice (by date/time heuristic)');
+
+        return valid_by_datetime[0];
+
+    } else if ( valid_by_datetime.length > 1 ) {
+
+        let valid_by_price_heuristic = valid_by_datetime.filter( function( m ) { return giftViableForMembershipByPrice( g, m ); });
+
+        if ( valid_by_price_heuristic.length > 1 ) {
+
+            //__gt_1('Multiple Valid Choices (by price heuristic)');
+
+            if ( !allEntriesEqual( valid_by_price_heuristic, function( a,b ) {  return a['Membership Constituent Name'] === b['Membership Constituent Name']; }) ) {
+                console.log('--');
+                console.log( valid_by_price_heuristic );
+                console.log('--');
+            }
+
+            return valid_by_price_heuristic[0];
+
+            // TODO: Implement a weak equality procedure selecting for weeding out duplicate constituents.
+            // NOTE: Not needed.
+
+            // TODO: Consider an edit-distance based heuristic on the constituent name to weed out duplicates.
+
+        } else if ( valid_by_price_heuristic.length === 1 ) {
+
+            return valid_by_price_heuristic[ 0 ];
+
+        } else {
+            __zero('No Valid Choices (by price heuristic)');
+
+        }
+
+    } else {
+        __zero('No Valid Choices (by date/time heuristic)');
+
+    }
+
+
     return {};
 
 }
@@ -171,27 +220,17 @@ function createMembershipForGift( m, c, g, type, gs ) {
 
     if ( m['Membership Constituent Name'] === c.CnBio_Name ) {
         //__self('Self membership');
+
         let d = 'This was a Raiser\'s Edge Gift that was connected to a membership that belonged to the constituent who made the gift.';
-
-
         return makeMembershipGift( type, g, m, 100, d, gs );
 
     } else {
-
         //__gift('Gift membership');
 
         let d = 'This was a Raiser\'s Edge gift was attached to a membership that was different from the constituent who made the gift.';
-        let ms = makeGiftMembershipGifts( type, g, m, 95, d, gs );
-
-        console.log('--');
-        console.log( ms );
-        console.log('--');
+        return makeGiftMembershipGifts( type, g, m, 95, d, gs );
 
     }
-
-
-
-    return [];
 
 }
 
@@ -205,12 +244,92 @@ function createMembershipForEmptyGift( c, g, type ) {
 
 }
 
+
+function giftViableForMembershipByPrice( gift, membership ) {
+
+    var amount = formatCurrency( gift.Gf_Amount );
+
+    switch( membership['Membership Category'].toLowerCase() ) {
+        case 'artist\'s guild-household':
+            return amount === 30; //
+
+        case 'conklin shop staff':
+            return amount === 0; //
+
+        case 'patron membership-honorarium':
+            return amount === 150; // TODO What should this be?
+
+        case 'benefactor membership':
+            return amount === 1000;
+
+        case 'contributing membership':
+            return 'Contributing';
+
+        case 'council membership':
+            return amount === 500 || amount === 550;
+
+        case 'faculty membership':
+            return amount === 0;
+
+        case 'family membership': // TODO is this real?
+        case 'household membership':
+            return amount === 50 || amount === 75;
+
+        case 'individual membership':
+            return amount === 45 || amount === 50;
+
+        case 'military household':
+        case 'military household membership':
+            return amount === 50;
+
+        case 'military individual membership':
+            return amount === 35 || amount === 40;
+
+        case 'patron membership':
+            return amount === 150 || amount === 175;
+
+        case 'photo guild':
+            return amount === 20 || amount === 25;
+
+        case 'senior household':
+        case 'senior household membership':
+            return amount === 50 || amount === 60;
+
+        case 'senior membership':
+            return amount === 35 || amount === 40;
+
+        case 'staff membership':
+            return amount === 0;
+
+        case 'student membership':
+            return amount === 25 || amount === 30;
+
+        case 'supporting  membership':
+        case 'supporting membership':
+            return amount === 250 || amount === 275;
+
+        case '':
+            return amount === 1000;
+
+        case 'life membership':
+        case 'university membership':
+        case 'young benefactor membership':
+        case 'student membership-muse':
+        case 'partners in art-nonprofit service organization':
+        case 'partners in art b&b':
+            return true;
+
+        default:
+            return true;
+    }
+}
+
 /**
  * This routine implements a heuristic for deciding whether
  * a given could reasonably have been associated with a gift.
  * This is done based on gift date and recorded membership dates.
  */
-function giftViableForMembership( gift, membership ) {
+function giftViableForMembershipByDate( gift, membership ) {
 
     var membership_epsilon = 2;
 
