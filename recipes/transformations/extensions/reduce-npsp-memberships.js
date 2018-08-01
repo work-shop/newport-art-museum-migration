@@ -112,6 +112,8 @@ function getMembershipGifts( gift, constituent, membership_map, constituent_type
 
     }
 
+    return [];
+
 }
 
 
@@ -149,7 +151,11 @@ function selectConstituentLinkedMembership( cₘ, c, g, type, gift_rows ) {
         //__c_cm_gt_1('Case cₘ > 1: Found a gift for a constituent with more than one constituent-linked membership');
 
     } else {
-        __c_cm_eq_1('Case cₘ = 1: Found a gift for a constituent with more exactly one constituent-linked membership');
+        //__c_cm_eq_1('Case cₘ = 1: Found a gift for a constituent with exactly one constituent-linked membership');
+
+        // console.log( c.CnBio_Name );
+        // console.log( g.Gf_CnBio_Name );
+        // console.log( cₘ[0]['Membership Constituent Name'] );
 
         return createMembershipForGift( cₘ[0], c, g, type, gift_rows );
 
@@ -236,7 +242,8 @@ function createMembershipForGift( m, c, g, type, gs, cert = 100, overrides = {} 
         return makeMembershipGift( type, g, m, cert, d, gs, overrides );
 
     } else {
-        //__gift('Gift membership');
+
+        // __gift('Gift membership');
 
         let d = 'This was a Raiser\'s Edge gift was attached to a membership that was different from the constituent who made the gift.';
         return makeGiftMembershipGifts( type, g, m, cert, d, gs, overrides );

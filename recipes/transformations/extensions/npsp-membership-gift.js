@@ -160,6 +160,13 @@ function makeMembershipGift( constituent_type, raw_gift, membership, certainty, 
 function makeGiftMembershipGifts( constituent_type, raw_gift, membership, certainty, description, gift_rows ) {
 
     var membership_gifts = makeMembershipGift( constituent_type, raw_gift, membership, certainty, description, gift_rows );
+
+    if ( membership_gifts.length === 0 ) {
+        // NOTE: In the case that we encounter a gift which is an acknowledged type for membership gift processing, we ignore it here.
+        //console.log( raw_gift.Gf_Type );
+        return [];
+    }
+
     var gift_membership_gift = duplicateWith( {}, membership_gifts[ membership_gifts.length - 1 ] );
 
     gift_membership_gift['Donation Amount'] = 0;
