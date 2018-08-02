@@ -22,6 +22,9 @@ const contact1_individual_relations = 5;
 
 const contact1_organizational_relations = 5;
 
+const reporting_inteval = 1000;
+let global_count = 0;
+
 var membership_map = {};
 var membership_map_constructed = false;
 
@@ -41,13 +44,18 @@ module.exports = RowMapReduce(
 
         if ( isIndividualConstituent( row ) ) {
 
-            // Create a Contact1 representing this Head of Household.
+            // 1. Create a Contact1 representing this Head of Household.
             var contact1_row = makeContact1( row );
+
+            // 2.  The record is now in a raw "prototype" state. It can be mixed with account or donation information
+            //     to create affiliations between this contact and accounts, gifts, other contacts, and memberships.
+            // 2.1 Stash it in the constituent row prototypes object, indexed by the System_ID.
             constituent_row_prototypes[ contact1_row['Contact1 RE ID'] ] = contact1_row;
 
+            // 3. Build primary account and contact2 affiliations.
             var contact1_primary_affiliations = duplicateWith( contact1_row, {});
 
-            // Create a Spouse for the Constituent, if Relevant.
+            // 3.1 Create a Spouse for the Constituent, if Relevant.
             if ( individualConstituentHasSpouse( row ) ) {
 
                 var spouse = makeContact2forContact1( 'CnSpSpBio_', 'CnSpPh', 3, row );
@@ -56,7 +64,7 @@ module.exports = RowMapReduce(
 
             }
 
-            // Create a primary affiliation for the contact if present.
+            // 3.2 Create a primary affiliation for the contact if present.
             if ( individualConstituentHasPrimaryAccount( row ) ) {
 
                 var account = makeAccount1forContact1('CnPrBs_', 'CnPrBsPh', 5, row );
@@ -65,8 +73,10 @@ module.exports = RowMapReduce(
 
             }
 
+            // 3.3 Commit the base row to the result set.
             result.push( contact1_primary_affiliations );
 
+            // 4. Build a set of donations and memberships and payment associated with the primary constituent.
             var contact1_gifts = reformatGiftsToDonationsAndPayments(
                 'Contact1',
                 contact1_row,
@@ -75,12 +85,16 @@ module.exports = RowMapReduce(
                 row
             );
 
+            // 4.1 Post all resultant donation rows. Some of these may not be associated with the constituent at hand,
             contact1_gifts.forEach( postDonationRows( contact1_row, result ) );
 
             if ( typeof membership_row_prototypes[ contact1_row['Contact1 RE ID'] ] !== 'undefined') {
                 membership_row_prototypes[ contact1_row['Contact1 RE ID'] ].forEach( function(donation_row) {
                     contact1_gifts.push( duplicateWith(contact1_row, donation_row) );
                 });
+
+                // Remove the prototype set from the set once we've used it for testing purposes.
+                delete membership_row_prototypes[ contact1_row['Contact1 RE ID'] ];
             }
 
         } else if ( isOrganizationalConstituent( row ) ) {
@@ -105,9 +119,21 @@ module.exports = RowMapReduce(
                 membership_row_prototypes[ account1_row['Account1 RE ID'] ].forEach( function(donation_row) {
                     contact1_gifts.push( duplicateWith(account1_row, donation_row) );
                 });
+
+                // Remove the prototype set from the set once we've used it for testing purposes.
+                delete membership_row_prototypes[ account1_row['Account1 RE ID'] ];
             }
 
         }
+
+        if ( global_count % reporting_inteval === 0 ) {
+            let keys = Object.keys( membership_row_prototypes );
+            console.log( keys.length );
+            console.log( keys );
+            console.log('---');
+        }
+
+        global_count += 1;
 
         return result;
 
