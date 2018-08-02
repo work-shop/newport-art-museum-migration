@@ -131,7 +131,7 @@ function CSVDataPipeline( sources, target ) {
     }
 
 
-    self.__runTransformation = function( data, transformation, i ) {
+    self.__runTransformation = function( data, transformation ) {
 
         self.__progress.interrupt( '\t' + transformation.desc );
 
@@ -145,7 +145,7 @@ function CSVDataPipeline( sources, target ) {
     };
 
 
-    self.__runValidation = function( data, validation, i ) {
+    self.__runValidation = function( data, validation ) {
 
         self.__progress.interrupt( '\t' + validation.desc );
 
@@ -220,7 +220,7 @@ function CSVDataPipeline( sources, target ) {
         self.__outputfile = output_csv_path;
 
         self.__sources.forEach( function( source, i ) {
-            if ( i == self.__sources.length - 1 ) {
+            if ( i === self.__sources.length - 1 ) {
                 console.log( ['\t', source, ' ===> ', self.__target ].join('') );
             } else {
                 console.log( ['\t', source ].join(''));

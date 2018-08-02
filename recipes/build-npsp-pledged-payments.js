@@ -12,7 +12,5 @@ module.exports = Recipe(
     [
         npsp_payments
     ],
-    [
-
-    ]
+    []
 );

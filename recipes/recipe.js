@@ -17,7 +17,7 @@ function Recipe( name = "Recipe", header= [], transformations = [], validations 
     self.validations = validations.map( get_transformation );
 
 
-};
+}
 
 
 module.exports = Recipe;

@@ -1,79 +1,14 @@
 'use strict';
 
 
-function email_field( type ) {
-    return 'Contact1 ' + type + ' Email __c'
-}
-
-function phone_field( type ) {
-    return 'Contact1 ' + type + ' Phone __c';
-}
-
-function address_field( type, part ) {
-    return type + ' ' + part + ' __c';
-}
-
-
 
 var fields = {};
 
-
-fields.Contact1 = {
-    headers: {
-
-        personal: {
-            external_id: 'RE ID __c',
-            salutation: 'Contact1 Salutation __c',
-            first_name: 'Contact1 First Name __c',
-            middle_name: 'Contact1 Middle Name __c',
-            last_name: 'Contact1 Last Name __c',
-            birth_date: 'Contact1 Birthdate __c',
-            title: 'Contact1 Title __c',
-            notes_field: 'Contact1 Notes __c',
-            solicit_codes: 'Solicit Codes __c',
-        },
-
-        emails: {
-            personal_email: email_field( 'Personal' ),
-            work_email: email_field( 'Work' ),
-            other_email: email_field( 'Other' ),
-            alternate_email: email_field( 'Alternate' ),
-            preferred_email: email_field( 'Preferred' ),
-        },
-
-        phones: {
-            home_phone: phone_field('Personal'),
-            work_phone: phone_field('Work'),
-            mobile_phone: phone_field('Mobile'),
-            other_phone: phone_field('Other'),
-            preferred_phone: phone_field('Preferred'),
-        },
-
-        addresses: [
-            {
-                street: address_field( 'Home', 'Street' ),
-                city: address_field( 'Home', 'City' ),
-                state: address_field( 'Home', 'State/Province' ),
-                zip: address_field( 'Home', 'Zip/Postal Code' ),
-                country: address_field( 'Home', 'Country' ),
-            },
-            {
-                street: address_field( 'Former', 'Street' ),
-                city: address_field( 'Former', 'City' ),
-                state: address_field( 'Former', 'State/Province' ),
-                zip: address_field( 'Former', 'Zip/Postal Code' ),
-                country: address_field( 'Former', 'Country' ),
-            }
-        ]
-
-
-    },
-    mappings: {
-
-    }
-};
-
-
+/**
+ * This object catalogs the set of
+ * Target output columns for the CSV set
+ * that the NPSPImport routine builds.
+ */
 fields.NPSPImport = {
     headers: [
 
@@ -181,7 +116,7 @@ fields.NPSPImport = {
         'Donation RE Campaign', // Tries to match an existing campaign by name. If no match is found, will create a new campaign.
         'Donation RE Appeal',
         'Donation RE Fund',
-        'Donation RE ID',
+        'Donation RE ID', // NOTE: Primary Matching Index in Salesforce
         'Donation RE Membership ID',
         'Donation RE Batch Number',
         'Donation Acknowledgement Status',
@@ -204,6 +139,11 @@ fields.NPSPImport = {
     ]
 };
 
+/**
+ * This object catalogs the set of
+ * Target output columns for the CSV set
+ * that the NPSPImportPaymebts routine builds.
+ */
 fields.NPSPImportPayments = {
     headers: [
         'Check/Reference Number',
@@ -213,13 +153,13 @@ fields.NPSPImportPayments = {
         'Payment Amount',
         'Payment Method',
         'Payment Date',
-        'Raiser\'s Edge ID',
+        'Raiser\'s Edge ID', // NOTE: Primary Matching Index in SF.
     ]
 }
 
 
 /**
- * Follow-up Imports Needed:
+ * TODO: Follow-up Imports Needed:
  * - Additional Addresses for Households.
  * - Additional Addresses for Organizations.
  * - Additional Contact-Contact Relationships.

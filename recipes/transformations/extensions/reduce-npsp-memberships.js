@@ -1,24 +1,21 @@
 'use strict';
 
-var moment = require('moment');
 
-var makeSurjectiveMappingWith = require('./objects.js').makeSurjectiveMappingWith;
 var allEntriesEqual = require('./objects.js').allEntriesEqual;
 
 var makeMembershipGift = require('./npsp-membership-gift.js').makeMembershipGift;
 var makeGiftMembershipGifts = require('./npsp-membership-gift.js').makeGiftMembershipGifts;
 
+var getLinkedMembershipsForGift = require('./npsp-linked-memberships.js').getLinkedMembershipsForGift;
+var getLinkedMembershipsForConstituent = require('./npsp-linked-memberships.js').getLinkedMembershipsForConstituent;
+var buildMembershipForUnlinkedConstituent = require('./npsp-linked-memberships.js').buildMembershipForUnlinkedConstituent;
+
+
 var giftViableForMembershipByDate = require('./npsp-membership-heuristics.js').giftViableForMembershipByDate;
 var giftViableForMembershipByPrice = require('./npsp-membership-heuristics.js').giftViableForMembershipByPrice;
 
-var formatCurrency = require('./format-currency.js');
 
 
-const gift_note_count = 3;
-
-const linked_gift_memberships_count = 5;
-
-const linked_constituent_memberships_count = 5;
 
 var debug_counts = {};
 
@@ -77,13 +74,13 @@ function getMembershipGifts( gift, constituent, membership_map, constituent_type
 
         // NOTE: In this case, we found a gift with linked memberhsips associated with it. Go ahead and build gift records based on those gifts.
 
-        return selectLinkedMembership( gₘ, constituent, gift, constituent_type, gift_rows );
+        return selectLinkedMembership( gₘ, constituent, gift, constituent_type, gift_rows, 'This gift had memberships linked to it. ' );
 
     } else if ( cₘ.length > 0 ) {
 
         // NOTE: In this case, we found no memberships on the gift, but the constituent had linked memberhsips associated with it. Go ahead and build gift records based on the constituent membership.
 
-        return selectLinkedMembership( cₘ, constituent, gift, constituent_type, gift_rows );
+        return selectLinkedMembership( cₘ, constituent, gift, constituent_type, gift_rows, 'This gift had no memberships linked, but there were memberships linked to the constituent. ' );
 
     } else {
 
@@ -93,35 +90,46 @@ function getMembershipGifts( gift, constituent, membership_map, constituent_type
 
     }
 
+    // NOTE: failure case. Should be an unreachable condition.
+    __c_fail('FAIL: reached an unreachable condition.');
     return [];
 
 }
 
 
 /**
- *
- *
+ * Given a set of memberships, a constituent record, and a gift record, this routine
+ * selects the most likely candidate membership to link with that constituent. Sometimes,
+ * there may be constituents with multiple memberships paid for by a single gift – in this case
+ * both memberships are selected, but a single payment is created.
  */
-function selectLinkedMembership( ms, c, g, type, gift_rows ) {
+function selectLinkedMembership( ms, c, g, type, gift_rows, gift_condition = '' ) {
+
 
     if ( ms.length > 1 ) {
 
         var filtered_ms = selectMostLikelyMembershipForGift( ms, c, g );
+        let d = gift_condition + 'Multiple memberships were linked, and we made a best guess for the one this gift covers, or selected multiple if the gift amount covered multiple memberships.';
 
-        return filtered_ms.map( function( m, i ) { return createMembershipForGift( m, c, g, type, gift_rows, 90, ( i > 0 ) ? {'Donation Amount': 0} : {} ); })
+        return filtered_ms.map( function( m, i ) { return createMembershipForGift( m, c, g, type, gift_rows, ( i === 0) ? 90 : 75, d, ( i > 0 ) ? {'Donation Amount': 0} : {} ); })
                  .reduce( function( a,b ) { return a.concat( b ); }, []);
 
+    } else if ( ms.length === 1 ) {
+
+        let d = gift_condition + 'A single matching membership was linked.'
+
+        return createMembershipForGift( ms[0], c, g, type, gift_rows, 100, d );
+
     } else {
-        //__c_cm_eq_1('Case cₘ = 1: Found a gift for a constituent with exactly one constituent-linked membership');
 
-        // console.log( c.CnBio_Name );
-        // console.log( g.Gf_CnBio_Name );
-        // console.log( cₘ[0]['Membership Constituent Name'] );
-
-        return createMembershipForGift( ms[0], c, g, type, gift_rows );
+        // NOTE: failure case. This routine should never be called with ms = [].
+        __c_fail('FAIL: `selectLinkedMembership` called with an empty membership set (ms = []).');
+        return [];
 
     }
 
+    // NOTE: failure case. Should be an unreachable condition.
+    __c_fail('FAIL: reached an unreachable condition.');
     return [];
 
 }
@@ -130,10 +138,10 @@ function selectLinkedMembership( ms, c, g, type, gift_rows ) {
  * Given a set of memberships, a gift, and a constituent,
  * selects the most likelt membership for the constituent and gift combination.
  *
- * @param ms a set of memberships to narrow down as much as possible.
+ * @param ms Array<Intermediate Membership Object> a set of memberships to narrow down as much as possible.
  * @param c an RE constituent to reference
  * @param g a gift record associated with c
- * @return Array<Membership Row> a set of membership records to create gifts for. Gift amount should be attributed to the first record.
+ * @return Array<Intermediate Membership Object> a set of membership records to create gifts for. Gift amount should be attributed to the first record.
  */
 function selectMostLikelyMembershipForGift( ms, c, g ) {
 
@@ -192,21 +200,37 @@ function selectMostLikelyMembershipForGift( ms, c, g ) {
 /**
  * Given a single membership, a gift, a constituent record, and a type,
  * this routine constructs one or more gifts represting this membership record.
+ * It handles the condition in which a membership is a gift membership, by using
+ * A strong equality condition that the membership constituent name must equal the
+ * selected constituent name.
+ *
+ * NOTE: Consider implementing a weaker equality measure, such as one based on edit distance.
+ * this would likely account for slightly different spellings of constituent names, etc.
+ *
+ * @param m Intermediate Membership Object – the membership object to transform into an NPSP row.
+ * @param c the constituent who made the gift.
+ * @param g the gift associated with the membership in question.
+ * @param type string the constituent type, either "Contact1" or "Account1".
+ * @param gs the set of all relevant gift rows to this constituent, for calculating pledge payments.
+ * @param cert int default = 100, the certainty of this gift assignment.
+ * @param d string a description covering the situation in which this gift was encountered during the migration (for future debugging).
+ * @param overrides Object a possible price override for handling gifts that should be marked as $0.00 account for gifts
+ * @return Array<NPSP Row> an array of NPSP rows to add to the final output.
  *
  */
-function createMembershipForGift( m, c, g, type, gs, cert = 100, overrides = {} ) {
+function createMembershipForGift( m, c, g, type, gs, cert = 100, d = '', overrides = {} ) {
 
     if ( m['Membership Constituent Name'] === c.CnBio_Name ) {
         //__self('Self membership');
 
-        let d = 'This was a Raiser\'s Edge Gift that was connected to a membership that belonged to the constituent who made the gift.';
+        d = ( d.length === 0 ) ? 'This was a Raiser\'s Edge Gift that was connected to a membership that belonged to the constituent who made the gift.' : d;
         return makeMembershipGift( type, g, m, cert, d, gs, overrides );
 
     } else {
 
         // __gift('Gift membership');
 
-        let d = 'This was a Raiser\'s Edge gift was attached to a membership that was different from the constituent who made the gift.';
+        d = ( d.length === 0 ) ? 'This was a Raiser\'s Edge gift was attached to a membership that was different from the constituent who made the gift.' : d;
         return makeGiftMembershipGifts( type, g, m, cert, d, gs, overrides );
 
     }
@@ -215,13 +239,15 @@ function createMembershipForGift( m, c, g, type, gs, cert = 100, overrides = {} 
 
 /**
  * Given a gift with no linked memberships, associated with a constituent with no linked memberships,
- * Make a best-guess membership for the constituent.
+ * Make a best-guess membership for the constituent, based on information in the gift. This
+ * membership will contain minimal information and a low overall certainty.
  */
 function createMembershipForEmptyGift( c, g, type, gift_rows ) {
 
     var m = buildMembershipForUnlinkedConstituent( c, g )
+    let d = 'This was a Raiser\'s Edge gift associated with a constituent, neither of which had any membership information linked. We made a best guess.';
 
-    return createMembershipForGift( m, c, g, type, gift_rows, 50 );
+    return createMembershipForGift( m, c, g, type, gift_rows, 25, d );
 
 }
 
@@ -245,16 +271,23 @@ function equalMemberships( m1, m2 ) {
 /**
  * This routine reduces a given membership list to the set of unique
  * memberships inside that list by removing any duplicates or redundancies.
+ *
+ * @param memberships Array<Intermediate Membership Object> A set of memberships to filter for duplicates.
+ * @return Array<Intermediate Membership Object> A set of memberships with exact duplicates removed.
  */
 function removeDuplicateMemberships( memberships ) {
+
+    const membershipEqualityTest = function( m ) { return !equalMemberships( m, memberships[i] ); };
+    const withAnd = function( a,b ) { return a && b; };
 
     var result = [];
 
     for ( var i = 0; i < memberships.length; i++ ) {
 
         if (
-            result.map( function( m ) { return !equalMemberships( m, memberships[i] ); })
-                  .reduce( function( a,b ) { return a && b; }, true )
+
+            result.map( membershipEqualityTest ).reduce( withAnd, true )
+
         ) {
 
             result.push( memberships[i] );
@@ -264,162 +297,6 @@ function removeDuplicateMemberships( memberships ) {
     }
 
     return result;
-
-}
-
-
-/**
- * Given a gift row, and a membership map mapping constituent names into a set of associated memberships,
- * but the set of memberships for a given gift.
- */
-function getLinkedMembershipsForGift( gift, membership_map ) {
-
-    var result = [];
-
-    for ( var i = 1; i <= linked_gift_memberships_count; i++ ) {
-
-        var name = gift[ 'Gf_Mem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Constit' ];
-
-        if ( typeof name !== 'undefined' && name !== '' ) {
-
-            var raw_memberships = membership_map[ name ];
-
-            if ( typeof raw_memberships !== 'undefined' ) {
-
-                var mapping = {};
-
-                //mapping.Mem_AddedBy = 'Membership Added By';
-                mapping.Mem_Category = 'Membership Category';
-                mapping.Mem_Consecutive_Years = 'Membership Consecutive Years';
-                mapping.Mem_Current_Dues_Amount = 'Membership Current Dues Amount';
-                mapping.Mem_DateAdded = 'Membership Date Added';
-                mapping.Mem_Date_Joined = 'Membership Date Joined';
-                mapping.Mem_DateChanged = 'Membership Date Changed';
-                mapping.Mem_Description = 'Membership Description';
-                mapping.Mem_Last_Dropped_Date = 'Membership Date Last Dropped';
-                mapping.Mem_Last_Renewed_Date = 'Membership Date Last Renewed';
-                mapping.Mem_Notes = 'Membership Notes';
-                mapping.Mem_Primary = 'Membership Is Primary';
-                mapping.Mem_Program = 'Membership Program';
-                mapping.Mem_Standing = 'Membership Standing';
-                mapping.Mem_Total_Children = 'Membership Total Children';
-                mapping.Mem_Total_Members = 'Membership Total Members';
-                mapping.Mem_Total_Years = 'Membership Total Years';
-                mapping.Mem_CnBio_System_ID = 'Membership Constituent ID';
-                mapping.Mem_CnBio_Name = 'Membership Constituent Name';
-
-                for ( var j = 0; j < raw_memberships.length; j += 1 ) {
-
-                    var mem = makeSurjectiveMappingWith( mapping )( raw_memberships[j] );
-
-                    if ( !emptyRecord( mem ) ) { result.push( mem ); }
-
-                }
-
-            }
-
-        }
-
-    }
-
-    return result;
-
-}
-
-
-/**
- * Given a constituent row, extract any memberships related to the constituent.
- * and map them over into the form that we want.
- */
-function getLinkedMembershipsForConstituent( constituent ) {
-
-    var result = [];
-
-    for ( var i = 1; i <= linked_constituent_memberships_count; i++ ) {
-
-        var mapping = {};
-
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Category' ] = 'Membership Category';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Consecutive_Years' ] = 'Membership Consecutive Years';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Current_Dues_Amount' ] = 'Membership Current Dues Amount';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_DateAdded' ] = 'Membership Date Added';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Date_Joined' ] = 'Membership Date Joined';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_DateChanged' ] = 'Membership Date Changed';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Description' ] = 'Membership Description';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Last_Dropped_Date' ] = 'Membership Date Last Dropped';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Last_Renewed_Date' ] = 'Membership Date Last Renewed';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Notes' ] = 'Membership Notes';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Primary' ] = 'Membership Is Primary';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Program' ] = 'Membership Program';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Standing' ] = 'Membership Standing';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Total_Children' ] = 'Membership Total Children';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Total_Members' ] = 'Membership Total Members';
-        mapping[ 'CnMem_1_' + ((('' + i).length > 1) ? i : '0' + i ) + '_Total_Years' ] = 'Membership Total Years';
-
-        var mem = makeSurjectiveMappingWith( mapping )( constituent );
-
-        if ( !emptyRecord( mem ) ) {
-            mem['Membership Constituent ID'] = constituent.CnBio_System_ID;
-            mem['Membership Constituent Name'] = constituent.CnBio_Name;
-            result.push( mem );
-        }
-
-    }
-
-    return result;
-
-}
-
-/**
- *
- */
-function buildMembershipForUnlinkedConstituent( constituent, gift ) {
-
-    var membership = {
-        "Membership Category": '',
-        "Membership Consecutive Years": "1",
-        "Membership Current Dues Amount": "$0.00",
-        "Membership Date Added": gift.Gf_Date,
-        "Membership Date Joined": gift.Gf_Date,
-        "Membership Date Changed": gift.Gf_Date,
-        "Membership Description": '',
-        "Membership Date Last Dropped": '',
-        "Membership Date Last Renewed": '',
-        "Membership Notes": '',
-        "Membership Is Primary": '',
-        "Membership Program": '',
-        "Membership Standing": '',
-        "Membership Total Children": '0',
-        "Membership Total Members": '1',
-        "Membership Total Years": '1',
-        "Membership Constituent ID": constituent.CnBio_System_ID,
-        "Membership Constituent Name": constituent.CnBio_Name
-    };
-
-    return membership;
-
-}
-
-
-/**
- * A simple test to determine whether a record is empty
- */
-function emptyRecord( record ) {
-
-    var empty = true;
-
-    for ( var key in record ) {
-        if ( record.hasOwnProperty( key ) ) {
-
-            if ( record[ key ] !== '' ) {
-                empty = false;
-                break;
-            }
-
-        }
-    }
-
-    return empty;
 
 }
 
