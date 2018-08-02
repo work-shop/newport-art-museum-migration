@@ -4,33 +4,20 @@ var fs = require('fs');
 
 var parser = require('csv-parser');
 var ProgressBar = require('progress');
-var sort = require('array-sort');
 
 
-function sortComparator( a,b ) {
-
-    var a_i = a['Sort_Index__f'];
-    var b_i = b['Sort_Index__f']
-
-    if ( a_i < b_i ) {
-
-        return -1;
-
-    } else if ( b_i < a_i ) {
-
-        return 1;
-
-    } else {
-
-        return 0;
-
-    }
-}
-
-
+/**
+ * This routine handles orchestration for the input and output CSV files from a transformation process.
+ *
+ */
 function CSVDataPipeline( sources, target ) {
     if ( !(this instanceof CSVDataPipeline) ) { return new CSVDataPipeline( sources, target ); }
     var self = this;
+
+    /**
+     * This constant sets the maximum number of rows to assign to an output csv.
+     */
+    self.__size_limit = 10000;
 
     /**
      * This is the set of sources that we're pulling from.
@@ -108,12 +95,14 @@ function CSVDataPipeline( sources, target ) {
 
     };
 
-
+    /**
+     * This internal routine writes a set of calculated CSV rows to a number of
+     * different csv files, as determined by a configuration-time size limit.
+     */
     self.__writeOutputFile = function( then = function() {} ) {
 
-        const size_limit = 10000;
         const total_rows = self.__rows.length;
-        const num_files = Math.ceil( total_rows / size_limit );
+        const num_files = Math.ceil( total_rows / self.__size_limit );
 
         var writers = (new Array( num_files )).fill( 0 ).map( function() { return require('csv-write-stream')(); });
 
@@ -123,9 +112,9 @@ function CSVDataPipeline( sources, target ) {
 
             local_writer.pipe( fs.createWriteStream( self.__outputfile + '-' + i ) );
 
-            for ( var j = 0; j < size_limit && (i * size_limit) + j < total_rows; j += 1 ) {
+            for ( var j = 0; j < self.__size_limit && (i * self.__size_limit) + j < total_rows; j += 1 ) {
 
-                local_writer.write( self.__rows[ (i * size_limit) + j ] );
+                local_writer.write( self.__rows[ (i * self.__size_limit) + j ] );
 
             }
 
@@ -138,7 +127,6 @@ function CSVDataPipeline( sources, target ) {
         console.log('\n');
 
         then();
-
 
     }
 
