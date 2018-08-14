@@ -171,6 +171,7 @@ fields.NPSPImportAddresses = {
         'Mailing Country',
         'County Name',
         'Address Type', // NOTE: One of 'Home', 'Work', 'Vacation Residence', 'Other'
+        'Default Address', // NOTE: True or False
         'Seasonal Start Month', // NOTE: 1 – 12, calendar months
         'Seasonal Start Day', // NOTE: 1 - 31, calendar day
         'Seasonal End Month', // NOTE: 1 – 12, calendar months

@@ -1,6 +1,9 @@
 'use strict';
 
+var formatAddress = require('./extensions/format-address.js').formatAddress;
 var RowMapReduce = require('./abstracts/row-operator.js').RowMapReduce;
+
+const address_prefix = 'CnAdrAll_1_0';
 
 module.exports = RowMapReduce(
     '(Constituents) → NPSP_Address_Import',
@@ -10,30 +13,23 @@ module.exports = RowMapReduce(
 
         var constituent_id = row.CnBio_System_ID;
 
-        var addresses = []
+        for ( var i = 0; i <= 4; i += 1 ) {
 
-        addresses.forEach( function( address ) {
+            var address = formatAddress( address_prefix + i, row );
 
-            var pledge_payment = {
-                'Raiser\'s Edge ID': constituent_id,// NOTE: Primary Matching Index in SF
-                'Mailing Street': '',
-                'Mailing City': '',
-                'Mailing State/Province': '',
-                'Mailing Zip/Postal Code': '',
-                'Mailing Country': '',
-                'County Name': '',
-                'Address Type': '', // NOTE: One of 'Home', 'Work', 'Vacation Residence', 'Other'
-                'Seasonal Start Month': '', // NOTE: 1 – 12, calendar months
-                'Seasonal Start Day': '', // NOTE: 1 - 31, calendar day
-                'Seasonal End Month' : '', // NOTE: 1 – 12, calendar months
-                'Seasonal End Day': '' // NOTE: 1 - 31, calendar day
+            if ( addressExists( address ) ) {
+
+                address['Raiser\'s Edge ID'] = constituent_id;
+
+                result.push( address );
+
             }
 
-            result.push( pledge_payment );
-
-        });
+        }
 
         return result;
 
     }
 );
+
+function addressExists( address ) { return address['Mailing Street'].length > 0; }

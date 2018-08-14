@@ -13,6 +13,10 @@ var makeSurjectiveMappingWith = require('./extensions/objects.js').makeSurjectiv
 var format_date = require('./extensions/format-date.js');
 var reformatGiftsToDonationsAndPayments = require('./extensions/reduce-npsp-donations.js');
 var RowMapReduce = require('./abstracts/row-operator.js').RowMapReduce;
+var makeStreet = require('./extensions/format-address.js').formatStreet;
+var validateAddress = require('./extensions/validate-address.js');
+
+
 
 const contact1_addresses_count = 5;
 
@@ -381,32 +385,7 @@ function makeIndexedPrefix( prefix, i, j ) {
     return prefix + '_' + i + '_' + ((('' + j).length === 2 ) ? j : ('0' + j) ) + '_';
 }
 
-/**
- * Get the primary address for a constituent.
- */
-function makeStreet( prefix, row, sep = ', ' ) {
 
-    var street = '';
-
-    var l1 = row[ prefix + 'Addrline1'];
-    var l2 = row[ prefix + 'Addrline2'];
-    var l3 = row[ prefix + 'Addrline3'];
-
-    if ( typeof l1 !== 'undefined' && l1 !== '' ) {
-        street += l1;
-    }
-
-    if ( typeof l2 !== 'undefined' && l2 !== '' ) {
-        street += sep + l2;
-    }
-
-    if ( typeof l3 !== 'undefined' && l3 !== '' ) {
-        street += sep + l3;
-    }
-
-    return { 'Home Street': street };
-
-}
 
 function isIndividualConstituent( row ) {
     return row.CnBio_First_Name !== '' && row.CnBio_Last_Name !== '' && row.CnBio_Org_Name === '';
@@ -550,61 +529,6 @@ function selectPrimaryPhoneForAccount( phones ) {
     return phones[0] || '';
 
 }
-
-function validateAddress( prefix, row ) {
-
-    var street = row[ prefix + ' Street' ];
-    var city = row[ prefix + ' City' ];
-    var state = row[ prefix + ' State/Province' ];
-    var zip = row[ prefix + ' Zip/Postal Code' ];
-    var country = row[ prefix + ' Country' ];
-
-    var address_text = [ street.replace(',', '', 'g'), city, state + ' ' + zip, country ].join(', ')
-    var address = addressParser.parseLocation( address_text );
-
-    if (
-           address && address !== null
-        && typeof address.street !== 'undefined'
-        && typeof address.type !== 'undefined'
-        && typeof address.city !== 'undefined'
-        && typeof address.state !== 'undefined'
-        && typeof address.zip !== 'undefined'
-    ) {
-
-        row[ prefix + ' Country' ] = 'United States';
-
-    } else {
-
-        if ( street.toLowerCase().indexOf('address') !== -1 ) {
-
-            row[ 'FLAG: Bad Address' ] = 'Y';
-
-        } else if ( street.toLowerCase().indexOf( 'dupe' ) !== -1 ) {
-
-            row[ 'FLAG: Bad Address' ] = 'Y';
-            row[ 'FLAG: Duplicate Record' ] = 'Y';
-
-        } else if ( street === '' ) {
-
-            row[ 'FLAG: Bad Address' ] = 'Y';
-
-        } else {
-
-        }
-
-    }
-
-    // console.log('\n');
-    // console.log( address_text )
-    // console.log( address );
-    // console.log('\n');
-
-    return row;
-
-}
-
-
-
 
 
 function condenseSpreadCodes( code_columns, normalize ) {
