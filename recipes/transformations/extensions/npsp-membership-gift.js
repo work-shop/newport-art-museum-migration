@@ -55,7 +55,7 @@ function makeMembershipGift( constituent_type, raw_gift, membership, certainty, 
         membership_gift['Donation Membership Origin'] = '';
         membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
         membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
-        membership_gift['Donation Membership Level'] = normalizeMembershipTypes( membership['Membership Category'] );
+        membership_gift['Donation Member Level'] = normalizeMembershipTypes( membership['Membership Category'] );
         membership_gift['Donation Certainty'] = certainty;
         membership_gift['Donation Migration Description'] = description;
         membership_gift['Donation Migration Donation Type'] = 'Membership-related Donation';
@@ -77,7 +77,7 @@ function makeMembershipGift( constituent_type, raw_gift, membership, certainty, 
         membership_gift['Donation Membership Origin'] = '';
         membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
         membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
-        membership_gift['Donation Membership Level'] = normalizeMembershipTypes( membership['Membership Category'] );
+        membership_gift['Donation Member Level'] = normalizeMembershipTypes( membership['Membership Category'] );
         membership_gift['Donation Certainty'] = certainty;
         membership_gift['Donation Migration Description'] = description;
         membership_gift['Donation Migration Donation Type'] = 'Membership-related Donation';
@@ -101,7 +101,7 @@ function makeMembershipGift( constituent_type, raw_gift, membership, certainty, 
         membership_gift['Donation Membership Origin'] = '';
         membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
         membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
-        membership_gift['Donation Membership Level'] = normalizeMembershipTypes( membership['Membership Category'] );
+        membership_gift['Donation Member Level'] = normalizeMembershipTypes( membership['Membership Category'] );
         membership_gift['Donation Certainty'] = certainty;
         membership_gift['Donation Migration Description'] = description;
         membership_gift['Donation Migration Donation Type'] = 'Membership-related Donation';
@@ -132,7 +132,7 @@ function makeMembershipGift( constituent_type, raw_gift, membership, certainty, 
         membership_gift['Donation Membership Origin'] = '';
         membership_gift['Donation Membership Start Date'] = membership_gift['Donation Date'];
         membership_gift['Donation Membership End Date'] = moment( membership_gift['Donation Date'] ).add(1,'y').format('MM/DD/YY');
-        membership_gift['Donation Membership Level'] = normalizeMembershipTypes( membership['Membership Category'] );
+        membership_gift['Donation Member Level'] = normalizeMembershipTypes( membership['Membership Category'] );
         membership_gift['Donation Certainty'] = certainty;
         membership_gift['Donation Migration Description'] = description;
         membership_gift['Donation Migration Donation Type'] = 'Membership-related Donation';
