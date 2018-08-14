@@ -10,6 +10,7 @@ var recipes = {};
 
 recipes.NPSP_Import_Profile__c = require('./build-npsp-import.js');
 recipes.NPSP_Import_Payments__c = require('./build-npsp-pledged-payments.js');
+recipes.NPSP_Import_Addresses__c = require('./build-npsp-addresses.js');
 
 
 module.exports = recipes;

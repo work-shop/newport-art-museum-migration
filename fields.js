@@ -142,7 +142,7 @@ fields.NPSPImport = {
 /**
  * This object catalogs the set of
  * Target output columns for the CSV set
- * that the NPSPImportPaymebts routine builds.
+ * that the NPSPImportPayments routine builds.
  */
 fields.NPSPImportPayments = {
     headers: [
@@ -157,6 +157,26 @@ fields.NPSPImportPayments = {
     ]
 }
 
+/**
+ * This object catalogues the valid addresses
+ * associated with a specific salesforce account
+ */
+fields.NPSPImportAddresses = {
+    headers: [
+        'Raiser\'s Edge ID', // NOTE: Primary Matching Index in SF
+        'Mailing Street',
+        'Mailing City',
+        'Mailing State/Province',
+        'Mailing Zip/Postal Code',
+        'Mailing Country',
+        'County Name',
+        'Address Type', // NOTE: One of 'Home', 'Work', 'Vacation Residence', 'Other'
+        'Seasonal Start Month', // NOTE: 1 – 12, calendar months
+        'Seasonal Start Day', // NOTE: 1 - 31, calendar day
+        'Seasonal End Month', // NOTE: 1 – 12, calendar months
+        'Seasonal End Day', // NOTE: 1 - 31, calendar day
+    ]
+}
 
 /**
  * TODO: Follow-up Imports Needed:
@@ -165,6 +185,8 @@ fields.NPSPImportPayments = {
  * - Additional Contact-Contact Relationships.
  * - Additional Contact-Organization Relationships.
  */
+
+
 
 
 module.exports = fields;

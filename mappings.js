@@ -15,8 +15,14 @@ module.exports = {
 
     'NPSP_Import_Payments__c': {
         primary: ['r__NPSP_Export_Constituent_Master'],
-        secondary: ['r__NPSP_Export_Gifts'],
-        sort_keys: ['Gf_CnBio_System_ID']
+        secondary: [ 'r__NPSP_Export_Gifts', 'r__NPSP_Export_Memberships'  ],
+        sort_keys: [ 'Gf_CnBio_System_ID', 'Mem_CnBio_System_ID' ]
+    },
+
+    'NPSP_Import_Addresses__c': {
+        primary: ['r__NPSP_Export_Constituent_Master'],
+        secondary: [  ],
+        sort_keys: [  ]
     }
 
 
