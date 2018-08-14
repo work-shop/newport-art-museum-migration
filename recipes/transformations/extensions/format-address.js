@@ -3,8 +3,6 @@
 var merge = require('./objects.js').merge;
 var validateAddress = require('./validate-address.js');
 var normalizeAddressType = require('./normalize-npsp-types.js').normalizeAddressType;
-var normalizeSeasonalMonth = require('./normalize-npsp-types.js').normalizeAddressType;
-var normalizeSeasonalDay = require('./normalize-npsp-types.js').normalizeAddressType;
 
 
 

@@ -180,9 +180,13 @@ fields.NPSPImportAddresses = {
 }
 
 /**
- * TODO: Follow-up Imports Needed:
+ * TODO: Test these Imports
+ *
  * - Additional Addresses for Households.
  * - Additional Addresses for Organizations.
+ *
+ * TODO: Follow-up Imports Needed:
+ *
  * - Additional Contact-Contact Relationships.
  * - Additional Contact-Organization Relationships.
  */
